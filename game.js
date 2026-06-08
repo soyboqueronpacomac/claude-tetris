@@ -61,6 +61,11 @@ const OCCASIONAL_CHANCE = 0.1;
 const REWARD_TYPE = 17;
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
+// Tablas de bonus por jugada hábil (multiplicadas por el nivel actual, igual que LINE_SCORES)
+const TSPIN_LINE_SCORES = [0, 800, 1200, 1600];
+const PERFECT_CLEAR_BONUS = [0, 800, 1200, 1800, 2000];
+const B2B_MULTIPLIER = 1.5;
+const FX_COLORS = { combo: '#7aa2f7', tspin: '#ba68c8', b2b: '#ffd54f', perfect: '#ffd700' };
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -77,8 +82,10 @@ const themeToggle = document.getElementById('theme-toggle');
 
 const THEME_KEY = 'tetris-theme';
 let themeColors = { gridLine: '#22222e', blockHighlight: 'rgba(255,255,255,0.12)' };
+let floatingTexts = [];
+let audioCtx = null;
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, nextSpecialAt, freezeUntil, justGotTetris;
+let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, nextSpecialAt, freezeUntil, justGotTetris, combo, b2bActive, lastActionWasRotation;
 
 function readThemeColors() {
   const styles = getComputedStyle(document.documentElement);
@@ -173,9 +180,25 @@ function tryRotate() {
     if (!collide(rotated, current.x + kick, current.y)) {
       current.shape = rotated;
       current.x += kick;
+      lastActionWasRotation = true;
       return;
     }
   }
+}
+
+// Detección de T-Spin (regla de las 3 esquinas): la pieza T debe haber rotado como
+// última acción y al menos 3 de las 4 celdas diagonales alrededor de su centro
+// (que siempre es current.x+1, current.y+1, ya que la T vive en una caja 3x3 en
+// sus 4 rotaciones) deben estar ocupadas o fuera del tablero.
+function isTSpin() {
+  if (current.type !== 3 || !lastActionWasRotation) return false;
+  const cx = current.x + 1, cy = current.y + 1;
+  let filled = 0;
+  for (const [dr, dc] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
+    const r = cy + dr, c = cx + dc;
+    if (r < 0 || r >= ROWS || c < 0 || c >= COLS || board[r][c]) filled++;
+  }
+  return filled >= 3;
 }
 
 function merge() {
@@ -227,7 +250,8 @@ function applyEffect(effect, piece) {
         for (let i = 0; i < cells.length; i++)
           board[ROWS - cells.length + i][c] = cells[i];
       }
-      clearLines();
+      const cascaded = clearLines();
+      if (cascaded) score += (LINE_SCORES[cascaded] || 0) * level;
       break;
     }
     case 'freeze':
@@ -236,6 +260,10 @@ function applyEffect(effect, piece) {
   }
 }
 
+// Mecánica pura de limpieza de líneas: actualiza tablero/lines/level/dropInterval/
+// comodines y retorna cuántas líneas se limpiaron. La puntuación por jugada hábil
+// (combo/T-Spin/B2B/Perfect Clear) vive en handleLineClear, no acá — así la cascada
+// de Gravedad puede reusar esta mecánica sin disparar bonus que no corresponden.
 function clearLines() {
   let cleared = 0;
   for (let r = ROWS - 1; r >= 0; r--) {
@@ -248,7 +276,6 @@ function clearLines() {
   }
   if (cleared) {
     lines += cleared;
-    score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
     if (cleared === 4) justGotTetris = true;
@@ -257,6 +284,45 @@ function clearLines() {
         if (board[r][c] < 0) board[r][c] = 0;
     updateHUD();
   }
+  return cleared;
+}
+
+// Orquesta los bonus de puntuación por jugada hábil sobre una limpieza ya
+// confirmada (cleared > 0): T-Spin -> Back-to-Back Tetris -> Combo -> Perfect Clear.
+// Dispara el feedback visual (texto flotante) y sonoro de cada evento detectado.
+function handleLineClear(cleared, tspin) {
+  const table = tspin ? TSPIN_LINE_SCORES : LINE_SCORES;
+  let gained = (table[cleared] || 0) * level;
+
+  const isTetris = cleared === 4;
+  if (isTetris && b2bActive) {
+    gained = Math.round(gained * B2B_MULTIPLIER);
+    showFloatingText('BACK-TO-BACK!', FX_COLORS.b2b);
+    playB2BSound();
+  }
+  b2bActive = isTetris;
+
+  combo++;
+  if (combo > 1) {
+    gained = Math.round(gained * combo);
+    showFloatingText(`COMBO x${combo}`, FX_COLORS.combo);
+    playComboSound(combo);
+  }
+
+  score += gained;
+
+  if (tspin) {
+    showFloatingText('T-SPIN!', FX_COLORS.tspin);
+    playTSpinSound();
+  }
+
+  if (board.every(row => row.every(v => v === 0))) {
+    score += (PERFECT_CLEAR_BONUS[cleared] || 0) * level;
+    showFloatingText('PERFECT CLEAR!', FX_COLORS.perfect);
+    playPerfectClearSound();
+  }
+
+  updateHUD();
 }
 
 function ghostY() {
@@ -275,6 +341,7 @@ function hardDrop() {
 function softDrop() {
   if (!collide(current.shape, current.x, current.y + 1)) {
     current.y++;
+    lastActionWasRotation = false;
     score += 1;
     updateHUD();
   } else {
@@ -284,15 +351,19 @@ function softDrop() {
 
 function lockPiece() {
   const special = SPECIAL_EFFECTS[current.type];
+  const tspin = isTSpin(); // se evalúa antes de mezclar: las diagonales de la T nunca son parte de su propia forma
   if (special) applyEffect(special.effect, current);
   else merge();
-  clearLines();
+  const cleared = clearLines();
+  if (cleared) handleLineClear(cleared, tspin);
+  else combo = 0;
   spawn();
 }
 
 function spawn() {
   current = next;
   next = nextPiece();
+  lastActionWasRotation = false;
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
@@ -337,6 +408,78 @@ function drawIcon(context, x, y, type, size) {
   context.fillText(special.icon, x * size + size / 2, y * size + size / 2 + 1);
 }
 
+// Cola de mensajes flotantes (COMBO, T-SPIN!, BACK-TO-BACK!, PERFECT CLEAR!)
+// dibujados sobre el tablero con fade-out y desplazamiento hacia arriba.
+function showFloatingText(text, color) {
+  floatingTexts.push({ text, color, start: performance.now(), duration: 1200 });
+  if (floatingTexts.length > 4) floatingTexts.shift();
+}
+
+function drawFloatingTexts() {
+  const now = performance.now();
+  floatingTexts = floatingTexts.filter(ft => now - ft.start < ft.duration);
+  floatingTexts.forEach((ft, i) => {
+    const progress = (now - ft.start) / ft.duration;
+    const alpha = progress < 0.7 ? 1 : Math.max(0, 1 - (progress - 0.7) / 0.3);
+    const yOffset = -progress * 30;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = ft.color;
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(ft.text, canvas.width / 2, canvas.height / 2 - 60 + i * 28 + yOffset);
+    ctx.restore();
+  });
+}
+
+// Sonido sintetizado vía Web Audio API — sin archivos externos, respeta el
+// "sin dependencias" del proyecto. El AudioContext se crea/reanuda perezosamente
+// en el primer keydown (los navegadores exigen un gesto del usuario).
+function getAudioCtx() {
+  if (!audioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    audioCtx = new Ctx();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playTone(freq, duration = 0.15, type = 'sine', startDelay = 0, gain = 0.12) {
+  const ac = getAudioCtx();
+  if (!ac) return;
+  const osc = ac.createOscillator();
+  const gainNode = ac.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  osc.connect(gainNode);
+  gainNode.connect(ac.destination);
+  const t0 = ac.currentTime + startDelay;
+  gainNode.gain.setValueAtTime(gain, t0);
+  gainNode.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+  osc.start(t0);
+  osc.stop(t0 + duration);
+}
+
+function playComboSound(combo) {
+  playTone(440 + Math.min(combo, 8) * 60, 0.12, 'square', 0, 0.08);
+}
+
+function playTSpinSound() {
+  playTone(523, 0.12, 'triangle', 0, 0.12);
+  playTone(659, 0.16, 'triangle', 0.08, 0.12);
+}
+
+function playB2BSound() {
+  playTone(660, 0.1, 'sawtooth', 0, 0.08);
+  playTone(880, 0.18, 'sawtooth', 0.07, 0.1);
+}
+
+function playPerfectClearSound() {
+  [523, 659, 784, 1047].forEach((f, i) => playTone(f, 0.22, 'triangle', i * 0.09, 0.12));
+}
+
 function drawGrid() {
   ctx.strokeStyle = themeColors.gridLine;
   ctx.lineWidth = 0.5;
@@ -377,6 +520,8 @@ function draw() {
         drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
         drawIcon(ctx, current.x + c, current.y + r, current.type, BLOCK);
       }
+
+  drawFloatingTexts();
 }
 
 function drawNext() {
@@ -425,6 +570,7 @@ function loop(ts) {
     dropAccum = 0;
     if (!collide(current.shape, current.x, current.y + 1)) {
       current.y++;
+      lastActionWasRotation = false;
     } else {
       lockPiece();
       if (gameOver) return;
@@ -446,6 +592,10 @@ function init() {
   nextSpecialAt = 10;
   freezeUntil = 0;
   justGotTetris = false;
+  combo = 0;
+  b2bActive = false;
+  lastActionWasRotation = false;
+  floatingTexts = [];
   lastTime = performance.now();
   next = nextPiece();
   spawn();
@@ -456,14 +606,21 @@ function init() {
 }
 
 document.addEventListener('keydown', e => {
+  getAudioCtx(); // primer gesto del usuario: desbloquea el AudioContext
   if (e.code === 'KeyP') { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
-      if (!collide(current.shape, current.x - 1, current.y)) current.x--;
+      if (!collide(current.shape, current.x - 1, current.y)) {
+        current.x--;
+        lastActionWasRotation = false;
+      }
       break;
     case 'ArrowRight':
-      if (!collide(current.shape, current.x + 1, current.y)) current.x++;
+      if (!collide(current.shape, current.x + 1, current.y)) {
+        current.x++;
+        lastActionWasRotation = false;
+      }
       break;
     case 'ArrowDown':
       softDrop();
