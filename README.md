@@ -35,6 +35,9 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 
 - Tablero de **10 × 20** celdas.
 - Las **7 piezas estándar** (I, O, T, S, Z, J, L) con colores diferenciados.
+- **Tuerca**: una 8ª pieza de reto, un anillo 3×3 con un hueco cuadrado en el centro.
+- **Piezas especiales con efectos**: cada 10 líneas eliminadas aparece una de 5 piezas
+  especiales (Bomba, Rayo, Tinte, Gravedad, Congelar) que altera el tablero al asentarse.
 - **Rotación** con _wall kicks_ básicos (pequeños desplazamientos para que la pieza pueda rotar pegada a la pared).
 - **Soft drop** (bajada acelerada) y **hard drop** (caída instantánea).
 - **Pieza fantasma** (_ghost piece_): muestra dónde aterrizará la pieza actual.
@@ -108,7 +111,7 @@ Aporta el aspecto visual con estética _dark / retro arcade_: fondo oscuro, tipo
 
 Contiene toda la lógica del juego. A grandes rasgos:
 
-- **Modelo del tablero**: una matriz `ROWS × COLS` donde cada celda guarda `0` (vacía) o un índice de color (1–7) que identifica la pieza.
+- **Modelo del tablero**: una matriz `ROWS × COLS` donde cada celda guarda `0` (vacía), un índice de color positivo (pieza fijada) o un índice **negativo** (celda "comodín" creada por el efecto Tinte, ver más abajo).
 - **Piezas**: definidas como matrices cuadradas. Para rotar se calcula la transposición + reverso de filas (`rotateCW`).
 - **Detección de colisiones** (`collide`): comprueba que ninguna celda de la pieza salga del tablero ni se solape con bloques ya fijados.
 - **Wall kicks** (`tryRotate`): si la rotación choca, intenta desplazar la pieza ±1 y ±2 columnas antes de descartar el giro.
@@ -137,6 +140,32 @@ init()
 ```
 
 Cuando una pieza recién generada ya colisiona al aparecer (`spawn`), se dispara `endGame()` y se muestra el overlay de **Game Over**.
+
+### Piezas especiales
+
+Cada vez que el contador de líneas (`lines`) alcanza un nuevo múltiplo de 10
+(`nextSpecialAt`), la siguiente pieza generada por `nextPiece()` no es una de las 8
+normales sino una de 5 piezas especiales, elegida al azar de forma uniforme. Todas
+comparten una forma simple de 2×2 (igual de manejable que la O) para que apuntar sea
+preciso, y se distinguen por color + un ícono dibujado encima (`drawIcon`).
+
+El jugador la mueve, rota y suelta como cualquier otra pieza — pero al asentarse no dejan
+bloques: `lockPiece` detecta que `current.type` está en `SPECIAL_EFFECTS` y, en lugar de
+`merge()`, llama a `applyEffect()`, que dispara el efecto correspondiente sobre `board`:
+
+| Pieza        | Ícono | Efecto                                                                                          |
+| ------------ | :---: | ----------------------------------------------------------------------------------------------- |
+| **Bomba**    |  💣   | Vacía un área 3×3 del tablero, anclada en la celda inferior-derecha donde se asentó el 2×2.     |
+| **Rayo**     |  ⚡   | Vacía en cruz: las 2 filas y las 2 columnas completas que ocupó la pieza.                        |
+| **Tinte**    |  🎨   | Detecta el color más frecuente del tablero y marca esas celdas como **comodín** (valor negativo). |
+| **Gravedad** |  ⬇   | Compacta cada columna por separado, haciendo caer los bloques sueltos para cerrar huecos.        |
+| **Congelar** |  ❄   | Pausa la caída automática 5 segundos (`freezeUntil`) sin bloquear el control del jugador.         |
+
+Las celdas **comodín** (creadas por Tinte) se guardan como el negativo del índice de
+color original — siguen contando como "ocupadas" para `clearLines`, pero `clearLines`
+las destruye automáticamente apenas se completa **cualquier** línea del tablero, no
+necesariamente la suya. Esto crea sinergias entre efectos: por ejemplo, Rayo deja huecos
+"flotantes" a propósito, que Gravedad puede luego compactar y disparar limpiezas en cadena.
 
 ---
 
@@ -173,7 +202,7 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `COLS`         | Columnas del tablero                     | `10`                  |
 | `ROWS`         | Filas del tablero                        | `20`                  |
 | `BLOCK`        | Tamaño en píxeles de cada celda          | `30`                  |
-| `COLORS`       | Paleta de colores por tipo de pieza      | 7 colores             |
+| `COLORS`       | Paleta de colores por tipo de pieza      | 13 colores            |
 | `LINE_SCORES`  | Puntos por 1, 2, 3 o 4 líneas eliminadas | `[0,100,300,500,800]` |
 | `dropInterval` | Velocidad inicial de caída en ms         | `1000`                |
 
