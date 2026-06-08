@@ -41,6 +41,10 @@ jobs:
                  - Causa probable (si se puede inferir leyendo el código)
                  - Enfoque de solución a alto nivel, para que después se pueda
                    implementar el fix correspondiente
+               El comentario debe estar escrito en formato Markdown válido,
+               de manera que GitHub lo renderice correctamente (usá encabezados,
+               listas, bloques de código con \`\`\` y rutas de archivo entre
+               backticks según corresponda).
 
             Importante: NO menciones a @claude en el comentario, para no disparar
             otros workflows de este repo (como claude.yml).
