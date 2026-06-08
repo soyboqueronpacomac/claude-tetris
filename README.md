@@ -35,7 +35,12 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 
 - Tablero de **10 × 20** celdas.
 - Las **7 piezas estándar** (I, O, T, S, Z, J, L) con colores diferenciados.
-- **Tuerca**: una 8ª pieza de reto, un anillo 3×3 con un hueco cuadrado en el centro.
+- **Tuerca**: pieza de reto 3×3, un anillo con un hueco cuadrado en el centro — aparece
+  ocasionalmente (no en el sorteo normal).
+- **Piezas pentominó ocasionales**: con una probabilidad fija por pieza generada (~10%)
+  puede aparecer una pieza de 5 bloques (Plus, U, Y) o la Tuerca, en lugar de una normal.
+- **Recompensa por Tetris**: al limpiar 4 líneas de una sola vez, la siguiente pieza es
+  garantizadamente un bloque 1×1 dorado — fácil de colocar donde más convenga.
 - **Piezas especiales con efectos**: cada 10 líneas eliminadas aparece una de 5 piezas
   especiales (Bomba, Rayo, Tinte, Gravedad, Congelar) que altera el tablero al asentarse.
 - **Rotación** con _wall kicks_ básicos (pequeños desplazamientos para que la pieza pueda rotar pegada a la pared).
@@ -167,6 +172,33 @@ las destruye automáticamente apenas se completa **cualquier** línea del tabler
 necesariamente la suya. Esto crea sinergias entre efectos: por ejemplo, Rayo deja huecos
 "flotantes" a propósito, que Gravedad puede luego compactar y disparar limpiezas en cadena.
 
+### Piezas pentominó y sistema de spawn ocasional
+
+Además de las 7 piezas estándar, `nextPiece()` puede generar piezas fuera del sorteo
+normal según una cadena de prioridades — cada pieza nueva se decide así:
+
+1. **Recompensa de Tetris** (`justGotTetris`): si la jugada anterior limpió 4 líneas
+   de una sola vez, la siguiente pieza es **garantizadamente** el bloque dorado 1×1.
+2. **Pieza especial** (`nextSpecialAt`): si se alcanzó un nuevo múltiplo de 10 líneas,
+   toca una de las 5 piezas con efecto (ver tabla de arriba).
+3. **Pieza ocasional** (`OCCASIONAL_CHANCE`, ~10% de probabilidad): se sortea al azar
+   entre la Tuerca y los 3 pentominós nuevos.
+4. **Pieza normal**: si no se cumple ninguna condición anterior, se sortea entre las
+   7 piezas estándar (I, O, T, S, Z, J, L).
+
+| Pieza      | Forma                                | Color         | Cuándo aparece |
+| ---------- | ------------------------------------ | ------------- | -------------- |
+| **Plus**   | pentominó en cruz (+)                | `#f06292`     | Ocasional (~10%, junto con Tuerca/U/Y) |
+| **U**      | pentominó en U                       | `#aed581`     | Ocasional |
+| **Y**      | pentominó en Y                       | `#5c6bc0`     | Ocasional |
+| **Tuerca** | anillo 3×3 con hueco cuadrado        | `#9e9e9e`     | Ocasional — pieza de reto |
+| **Single** | bloque suelto 1×1                    | `#ffd700`     | Garantizada tras un Tetris (4 líneas) |
+
+Las piezas pentominó y la Tuerca se rotan y colocan exactamente igual que cualquier
+pieza normal — `collide` ya soporta huecos dentro de la matriz (`if (!shape[r][c]) continue`),
+así que ni la cruz del Plus ni el anillo de la Tuerca necesitan lógica especial para
+chocar o asentarse correctamente.
+
 ---
 
 ## Tecnologías
@@ -202,7 +234,7 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `COLS`         | Columnas del tablero                     | `10`                  |
 | `ROWS`         | Filas del tablero                        | `20`                  |
 | `BLOCK`        | Tamaño en píxeles de cada celda          | `30`                  |
-| `COLORS`       | Paleta de colores por tipo de pieza      | 13 colores            |
+| `COLORS`       | Paleta de colores por tipo de pieza      | 17 colores            |
 | `LINE_SCORES`  | Puntos por 1, 2, 3 o 4 líneas eliminadas | `[0,100,300,500,800]` |
 | `dropInterval` | Velocidad inicial de caída en ms         | `1000`                |
 

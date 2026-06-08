@@ -19,6 +19,10 @@ const COLORS = [
   '#ce93d8', // Tinte - violeta
   '#a1887f', // Gravedad - marrón tierra
   '#80deea', // Congelar - celeste hielo
+  '#f06292', // Plus - rosa
+  '#aed581', // U - lima
+  '#5c6bc0', // Y - índigo
+  '#ffd700', // Single - dorado (recompensa)
 ];
 
 const PIECES = [
@@ -36,6 +40,10 @@ const PIECES = [
   [[11,11],[11,11]],                          // Tinte
   [[12,12],[12,12]],                          // Gravedad
   [[13,13],[13,13]],                          // Congelar
+  [[0,14,0],[14,14,14],[0,14,0]],             // Plus - pentominó +
+  [[15,0,15],[15,15,15]],                     // U - pentominó U
+  [[0,16],[16,16],[0,16],[0,16]],             // Y - pentominó Y
+  [[17]],                                     // Single 1x1 - recompensa tras Tetris
 ];
 
 const SPECIAL_EFFECTS = {
@@ -45,6 +53,12 @@ const SPECIAL_EFFECTS = {
   12: { effect: 'gravity',   icon: '⬇' },
   13: { effect: 'freeze',    icon: '❄' },
 };
+
+// Piezas que aparecen ocasionalmente (probabilidad fija por pieza generada): tuerca + pentominós
+const OCCASIONAL_TYPES = [8, 14, 15, 16];
+const OCCASIONAL_CHANCE = 0.1;
+// Recompensa garantizada: la pieza 1x1 que sigue a un Tetris (4 líneas de una)
+const REWARD_TYPE = 17;
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
@@ -64,7 +78,7 @@ const themeToggle = document.getElementById('theme-toggle');
 const THEME_KEY = 'tetris-theme';
 let themeColors = { gridLine: '#22222e', blockHighlight: 'rgba(255,255,255,0.12)' };
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, nextSpecialAt, freezeUntil;
+let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, nextSpecialAt, freezeUntil, justGotTetris;
 
 function readThemeColors() {
   const styles = getComputedStyle(document.documentElement);
@@ -104,17 +118,28 @@ function buildPiece(type) {
 }
 
 function randomNormalPiece() {
-  return buildPiece(Math.floor(Math.random() * 8) + 1);
+  return buildPiece(Math.floor(Math.random() * 7) + 1);
 }
 
 function randomSpecialPiece() {
   return buildPiece(9 + Math.floor(Math.random() * 5));
 }
 
+function randomOccasionalPiece() {
+  return buildPiece(OCCASIONAL_TYPES[Math.floor(Math.random() * OCCASIONAL_TYPES.length)]);
+}
+
 function nextPiece() {
+  if (justGotTetris) {
+    justGotTetris = false;
+    return buildPiece(REWARD_TYPE);
+  }
   if (lines >= nextSpecialAt) {
     nextSpecialAt += 10;
     return randomSpecialPiece();
+  }
+  if (Math.random() < OCCASIONAL_CHANCE) {
+    return randomOccasionalPiece();
   }
   return randomNormalPiece();
 }
@@ -226,6 +251,7 @@ function clearLines() {
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    if (cleared === 4) justGotTetris = true;
     for (let r = 0; r < ROWS; r++)
       for (let c = 0; c < COLS; c++)
         if (board[r][c] < 0) board[r][c] = 0;
@@ -419,6 +445,7 @@ function init() {
   dropAccum = 0;
   nextSpecialAt = 10;
   freezeUntil = 0;
+  justGotTetris = false;
   lastTime = performance.now();
   next = nextPiece();
   spawn();
