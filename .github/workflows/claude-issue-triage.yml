@@ -1,0 +1,48 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_TOKEN }}
+          prompt: |
+            Se disparó este workflow para el issue #${{ github.event.issue.number }}
+            (evento: ${{ github.event.action }}).
+
+            Tu tarea:
+            1. Leé el issue completo con: gh issue view ${{ github.event.issue.number }}
+            2. Explorá el código del repositorio para entender el contexto del problema reportado.
+            3. Asigná las labels que correspondan de las que ya existen en el repo
+               (consultalas con `gh label list` si hace falta) usando:
+               gh issue edit ${{ github.event.issue.number }} --add-label "<label>"
+            4. Publicá un comentario de diagnóstico con:
+               gh issue comment ${{ github.event.issue.number }} --body "..."
+               El comentario debe incluir:
+                 - Resumen del problema
+                 - Archivos/módulos del código probablemente involucrados
+                 - Causa probable (si se puede inferir leyendo el código)
+                 - Enfoque de solución a alto nivel, para que después se pueda
+                   implementar el fix correspondiente
+
+            Importante: NO menciones a @claude en el comentario, para no disparar
+            otros workflows de este repo (como claude.yml).
+          claude_args: |
+            --allowed-tools "Read,Glob,Grep,Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*)"
