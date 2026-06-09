@@ -109,7 +109,8 @@ let board, current, next, score, lines, level, paused, gameOver, lastTime, dropA
     energy, skillMenuOpen, holdPiece, holdUsed, slowActive, slowUntil, peekQueue, peekUntil, undoSnapshot,
     gameMode, modeStartTime, pausedAt,
     particles, pendingClear, shakeUntil, shakeIntensity, shakeDuration,
-    keyHeld, dasAt, lastArr;
+    keyHeld, dasAt, lastArr,
+    piecesPlaced, clearsByType, tspinsCount, actionsCount;
 
 function readThemeColors() {
   const styles = getComputedStyle(document.documentElement);
@@ -323,6 +324,8 @@ function clearLines() {
 // confirmada (cleared > 0): T-Spin -> Back-to-Back Tetris -> Combo -> Perfect Clear.
 // Dispara el feedback visual (texto flotante) y sonoro de cada evento detectado.
 function handleLineClear(cleared, tspin) {
+  clearsByType[cleared] = (clearsByType[cleared] || 0) + 1;
+  if (tspin) tspinsCount++;
   const table = tspin ? TSPIN_LINE_SCORES : LINE_SCORES;
   let gained = (table[cleared] || 0) * level;
 
@@ -396,6 +399,7 @@ function takeSnapshot() {
 
 function lockPiece() {
   undoSnapshot = takeSnapshot();
+  piecesPlaced++;
   const special = SPECIAL_EFFECTS[current.type];
   const tspin = isTSpin();
   if (special) applyEffect(special.effect, current);
@@ -873,6 +877,7 @@ function saveScore(mode, scoreVal, time) {
   const records = loadScores(mode);
   const entry = { score: scoreVal, date: new Date().toLocaleDateString('es-AR') };
   if (mode === 'sprint') entry.time = time;
+  entry.stats = { pieces: piecesPlaced, clears: [...clearsByType], tspins: tspinsCount };
   records.push(entry);
   records.sort(mode === 'sprint'
     ? (a, b) => a.time - b.time
@@ -895,6 +900,24 @@ function renderScores(mode, newRank) {
     return `<li class="${isNew ? 'score-new' : ''}">${i + 1}. ${detail}${isNew ? ' ★' : ''}</li>`;
   });
   return `<div class="score-table"><p class="score-table-title">${title}</p><ul>${rows.join('')}</ul></div>`;
+}
+
+function renderStats(elapsedMs) {
+  const min = elapsedMs / 60000;
+  const apm = min > 0.01 ? Math.round(actionsCount / min) : 0;
+  const rows = [
+    ['Piezas',  piecesPlaced],
+    ['Singles', clearsByType[1] || 0],
+    ['Dobles',  clearsByType[2] || 0],
+    ['Triples', clearsByType[3] || 0],
+    ['Tetris',  clearsByType[4] || 0],
+    ...(tspinsCount ? [['T-Spins', tspinsCount]] : []),
+    ['APM',     apm],
+  ];
+  const cells = rows.map(([k, v]) =>
+    `<span class="stat-key">${k}</span><span class="stat-val">${v}</span>`
+  ).join('');
+  return `<div class="stats-grid">${cells}</div>`;
 }
 
 function updateModeSelectRecord(mode) {
@@ -936,7 +959,8 @@ function endSprintGame() {
   const rank = saveScore('sprint', score, elapsed);
   overlayTitle.textContent = 'SPRINT';
   overlayScore.innerHTML = `Tiempo: ${formatTime(elapsed)} &nbsp;|&nbsp; Puntuación: ${score.toLocaleString()}`
-    + renderScores('sprint', rank);
+    + renderScores('sprint', rank)
+    + renderStats(elapsed);
   overlay.classList.remove('hidden');
   updateModeSelectRecord('sprint');
 }
@@ -946,8 +970,11 @@ function endUltraGame() {
   cancelAnimationFrame(animId);
   timerEl.textContent = '0:00.0';
   const rank = saveScore('ultra', score);
+  const elapsed = Math.min(ULTRA_DURATION, performance.now() - modeStartTime);
   overlayTitle.textContent = 'TIEMPO AGOTADO';
-  overlayScore.innerHTML = `Puntuación: ${score.toLocaleString()}` + renderScores('ultra', rank);
+  overlayScore.innerHTML = `Puntuación: ${score.toLocaleString()}`
+    + renderScores('ultra', rank)
+    + renderStats(elapsed);
   overlay.classList.remove('hidden');
   updateModeSelectRecord('ultra');
 }
@@ -961,9 +988,11 @@ function endGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
   const rank = (gameMode === 'classic') ? saveScore('classic', score) : -1;
+  const elapsed = performance.now() - modeStartTime;
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.innerHTML = `Puntuación: ${score.toLocaleString()}`
-    + (gameMode === 'classic' ? renderScores('classic', rank) : '');
+    + (gameMode === 'classic' ? renderScores('classic', rank) : '')
+    + renderStats(elapsed);
   overlay.classList.remove('hidden');
   if (gameMode === 'classic') updateModeSelectRecord('classic');
 }
@@ -1087,6 +1116,10 @@ function init() {
   keyHeld = { left: false, right: false };
   dasAt   = { left: 0,     right: 0     };
   lastArr = { left: 0,     right: 0     };
+  piecesPlaced = 0;
+  clearsByType = [0, 0, 0, 0, 0];
+  tspinsCount  = 0;
+  actionsCount = 0;
   lastTime = performance.now();
   next = nextPiece();
   spawn();
@@ -1118,6 +1151,7 @@ document.addEventListener('keydown', e => {
   switch (e.code) {
     case 'ArrowLeft':
       if (!e.repeat) {
+        actionsCount++;
         if (!collide(current.shape, current.x - 1, current.y)) {
           current.x--;
           lastActionWasRotation = false;
@@ -1129,6 +1163,7 @@ document.addEventListener('keydown', e => {
       break;
     case 'ArrowRight':
       if (!e.repeat) {
+        actionsCount++;
         if (!collide(current.shape, current.x + 1, current.y)) {
           current.x++;
           lastActionWasRotation = false;
@@ -1139,14 +1174,17 @@ document.addEventListener('keydown', e => {
       }
       break;
     case 'ArrowDown':
+      if (!e.repeat) actionsCount++;
       softDrop();
       break;
     case 'ArrowUp':
     case 'KeyX':
+      actionsCount++;
       tryRotate();
       break;
     case 'Space':
       e.preventDefault();
+      actionsCount++;
       hardDrop();
       break;
   }
