@@ -76,6 +76,9 @@ const PEEK_DURATION = 10000;
 const SPRINT_LINES   = 40;
 const ULTRA_DURATION = 120000;
 
+const MAX_RECORDS = 5;
+const SCORES_KEY  = mode => `tetris-scores-${mode}`;
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -769,6 +772,49 @@ function drawNext() {
       }
 }
 
+function loadScores(mode) {
+  try { return JSON.parse(localStorage.getItem(SCORES_KEY(mode))) || []; }
+  catch { return []; }
+}
+
+function saveScore(mode, scoreVal, time) {
+  const records = loadScores(mode);
+  const entry = { score: scoreVal, date: new Date().toLocaleDateString('es-AR') };
+  if (mode === 'sprint') entry.time = time;
+  records.push(entry);
+  records.sort(mode === 'sprint'
+    ? (a, b) => a.time - b.time
+    : (a, b) => b.score - a.score);
+  const rank = records.indexOf(entry);
+  records.splice(MAX_RECORDS);
+  if (rank < MAX_RECORDS)
+    localStorage.setItem(SCORES_KEY(mode), JSON.stringify(records));
+  return rank < MAX_RECORDS ? rank : -1;
+}
+
+function renderScores(mode, newRank) {
+  const records = loadScores(mode);
+  if (!records.length) return '';
+  const title = mode === 'sprint' ? 'MEJORES TIEMPOS' : 'MEJORES PUNTUACIONES';
+  const rows = records.map((r, i) => {
+    const isNew  = i === newRank;
+    const pts    = r.score.toLocaleString();
+    const detail = mode === 'sprint' ? `${formatTime(r.time)} — ${pts} pts` : pts;
+    return `<li class="${isNew ? 'score-new' : ''}">${i + 1}. ${detail}${isNew ? ' ★' : ''}</li>`;
+  });
+  return `<div class="score-table"><p class="score-table-title">${title}</p><ul>${rows.join('')}</ul></div>`;
+}
+
+function updateModeSelectRecord(mode) {
+  const records = loadScores(mode);
+  const el = document.querySelector(`.mode-btn[data-mode="${mode}"] .mode-desc`);
+  if (!el || !records.length) return;
+  const best = records[0];
+  el.textContent = mode === 'sprint'
+    ? `Mejor: ${formatTime(best.time)}`
+    : `Mejor: ${best.score.toLocaleString()}`;
+}
+
 function startGame(mode) {
   gameMode = mode;
   modeSelectOverlay.classList.add('hidden');
@@ -795,18 +841,23 @@ function endSprintGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
   const elapsed = performance.now() - modeStartTime;
+  const rank = saveScore('sprint', score, elapsed);
   overlayTitle.textContent = 'SPRINT';
-  overlayScore.textContent = `Tiempo: ${formatTime(elapsed)}  |  Puntuación: ${score.toLocaleString()}`;
+  overlayScore.innerHTML = `Tiempo: ${formatTime(elapsed)} &nbsp;|&nbsp; Puntuación: ${score.toLocaleString()}`
+    + renderScores('sprint', rank);
   overlay.classList.remove('hidden');
+  updateModeSelectRecord('sprint');
 }
 
 function endUltraGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
   timerEl.textContent = '0:00.0';
+  const rank = saveScore('ultra', score);
   overlayTitle.textContent = 'TIEMPO AGOTADO';
-  overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
+  overlayScore.innerHTML = `Puntuación: ${score.toLocaleString()}` + renderScores('ultra', rank);
   overlay.classList.remove('hidden');
+  updateModeSelectRecord('ultra');
 }
 
 function zenMercy() {
@@ -817,9 +868,12 @@ function zenMercy() {
 function endGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
+  const rank = (gameMode === 'classic') ? saveScore('classic', score) : -1;
   overlayTitle.textContent = 'GAME OVER';
-  overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
+  overlayScore.innerHTML = `Puntuación: ${score.toLocaleString()}`
+    + (gameMode === 'classic' ? renderScores('classic', rank) : '');
   overlay.classList.remove('hidden');
+  if (gameMode === 'classic') updateModeSelectRecord('classic');
 }
 
 function togglePause() {
@@ -829,7 +883,7 @@ function togglePause() {
     pausedAt = performance.now();
     cancelAnimationFrame(animId);
     overlayTitle.textContent = 'PAUSA';
-    overlayScore.textContent = '';
+    overlayScore.innerHTML = '';
     overlay.classList.remove('hidden');
   } else {
     if (gameMode === 'sprint' || gameMode === 'ultra') {
@@ -979,3 +1033,4 @@ document.getElementById('mode-change-btn').addEventListener('click', () => {
 });
 
 initTheme();
+['classic', 'sprint', 'ultra'].forEach(updateModeSelectRecord);

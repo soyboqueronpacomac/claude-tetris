@@ -196,6 +196,39 @@ body {
   color: var(--muted);
 }
 
+/* Tabla de récords en overlay */
+.score-table {
+  margin-top: 14px;
+  text-align: left;
+  width: 100%;
+}
+
+.score-table-title {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--label);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.score-table ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.score-table li {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.score-table li.score-new {
+  color: var(--accent);
+  font-weight: 700;
+}
+
 /* Botón secundario "Cambiar modo" en overlay de fin de partida */
 #mode-change-btn {
   background: transparent;
