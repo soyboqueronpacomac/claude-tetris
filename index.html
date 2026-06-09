@@ -33,6 +33,11 @@
           <span class="value" id="level">1</span>
         </div>
 
+        <div class="panel-section" id="timer-section">
+          <span class="label">TIEMPO</span>
+          <span class="value" id="timer">0:00.0</span>
+        </div>
+
         <div class="panel-section">
           <span class="label">NEXT</span>
           <canvas id="next-canvas" width="120" height="120"></canvas>
@@ -65,11 +70,37 @@
       </aside>
     </div>
 
+    <div id="mode-select" class="overlay">
+      <div class="overlay-box mode-select-box">
+        <p class="game-title">TETRIS</p>
+        <p class="mode-select-subtitle">Elegí un modo de juego</p>
+        <div class="mode-grid">
+          <button class="mode-btn" data-mode="classic">
+            <span class="mode-name">Classic</span>
+            <span class="mode-desc">Sin límites</span>
+          </button>
+          <button class="mode-btn" data-mode="sprint">
+            <span class="mode-name">Sprint</span>
+            <span class="mode-desc">40 líneas</span>
+          </button>
+          <button class="mode-btn" data-mode="ultra">
+            <span class="mode-name">Ultra</span>
+            <span class="mode-desc">2 minutos</span>
+          </button>
+          <button class="mode-btn" data-mode="zen">
+            <span class="mode-name">Zen</span>
+            <span class="mode-desc">Sin Game Over</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div id="overlay" class="overlay hidden">
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
         <button id="restart-btn">Reiniciar</button>
+        <button id="mode-change-btn" class="mode-change-link">Cambiar modo</button>
       </div>
     </div>
   </div>
