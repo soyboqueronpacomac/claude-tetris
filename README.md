@@ -48,6 +48,8 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Pieza fantasma** (_ghost piece_): muestra dónde aterrizará la pieza actual.
 - **Vista previa** de la siguiente pieza.
 - **Sistema de puntuación** clásico de Tetris (100 / 300 / 500 / 800 multiplicado por nivel).
+- **Combos encadenados, T-Spin, Back-to-Back Tetris y Perfect Clear**: bonus de
+  puntuación por jugadas hábiles, con texto flotante y sonido sintetizado al activarse.
 - **Niveles** que aumentan cada 10 líneas y aceleran la caída.
 - **Pausa** y **Game Over** con opción de reinicio.
 
@@ -199,6 +201,36 @@ pieza normal — `collide` ya soporta huecos dentro de la matriz (`if (!shape[r]
 así que ni la cruz del Plus ni el anillo de la Tuerca necesitan lógica especial para
 chocar o asentarse correctamente.
 
+### Sistema de combos y bonus por jugada hábil
+
+Además de la puntuación clásica (`LINE_SCORES` × nivel), asentar piezas de forma
+hábil otorga bonus adicionales. Toda esta lógica vive en `handleLineClear()`,
+que se invoca desde `lockPiece` solo cuando la limpieza proviene del jugador
+(la cascada de Gravedad sigue sumando puntuación base sin disparar ninguno de
+estos bonus, para no premiar un efecto secundario como si fuera una jugada).
+
+| Sistema | Cómo se activa | Bonus |
+| ------- | -------------- | ----- |
+| **Combo encadenado** | Limpiar líneas en asentados consecutivos (sin fallar uno en el medio) incrementa `combo`. Asentar sin limpiar lo resetea a `0`. | Multiplica la puntuación por el valor de `combo` (2ª limpieza consecutiva = ×2, 3ª = ×3...). |
+| **T-Spin** | La pieza **T** rota como última acción antes de asentarse y, además, al menos 3 de las 4 celdas diagonales alrededor de su centro están ocupadas o fuera del tablero ("regla de las 3 esquinas", `isTSpin()`). | Usa la tabla `TSPIN_LINE_SCORES = [0, 800, 1200, 1600]` en lugar de `LINE_SCORES` — un T-Spin Single vale tanto como un Tetris normal. |
+| **Back-to-Back Tetris** | Encadenar dos **Tetris** (limpiar 4 líneas) consecutivos — un asentado sin limpiar no rompe la cadena, pero limpiar 1-3 líneas sí. | Multiplica la puntuación del Tetris por `B2B_MULTIPLIER = 1.5`. |
+| **Perfect Clear** | El tablero queda completamente vacío justo después de eliminar las líneas completas. | Suma `PERFECT_CLEAR_BONUS = [0, 800, 1200, 1800, 2000]` × nivel **encima** de la puntuación normal de la limpieza. |
+
+El orden de aplicación es predecible: `(¿T-Spin? TSPIN_LINE_SCORES : LINE_SCORES)[líneas] × nivel`,
+después el multiplicador B2B (si corresponde), después el multiplicador de combo,
+y por último — si el tablero quedó vacío — el bonus de Perfect Clear se suma aparte.
+Un T-Spin Tetris es físicamente imposible (la T solo ocupa 4 celdas), así que
+T-Spin y B2B nunca compiten por la misma limpieza.
+
+Cada bonus dispara feedback sensorial inmediato: un **texto flotante** dibujado
+sobre el tablero (`showFloatingText` / `drawFloatingTexts`, con fade-out y
+desplazamiento hacia arriba — el mismo enfoque "todo en el canvas" que usa
+`drawIcon`) y un **sonido sintetizado** vía Web Audio API (`playComboSound`,
+`playTSpinSound`, `playB2BSound`, `playPerfectClearSound`), generado con
+`OscillatorNode` + `GainNode` sin depender de archivos de audio externos. El
+`AudioContext` se crea de forma perezosa en el primer `keydown`, respetando la
+política de gesto del usuario de los navegadores.
+
 ---
 
 ## Tecnologías
@@ -236,6 +268,9 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `BLOCK`        | Tamaño en píxeles de cada celda          | `30`                  |
 | `COLORS`       | Paleta de colores por tipo de pieza      | 17 colores            |
 | `LINE_SCORES`  | Puntos por 1, 2, 3 o 4 líneas eliminadas | `[0,100,300,500,800]` |
+| `TSPIN_LINE_SCORES` | Puntos por T-Spin de 1, 2 o 3 líneas | `[0,800,1200,1600]`   |
+| `PERFECT_CLEAR_BONUS` | Bonus extra por dejar el tablero vacío | `[0,800,1200,1800,2000]` |
+| `B2B_MULTIPLIER` | Multiplicador por Tetris consecutivos (Back-to-Back) | `1.5` |
 | `dropInterval` | Velocidad inicial de caída en ms         | `1000`                |
 
 > Si cambias `COLS`, `ROWS` o `BLOCK`, recuerda ajustar también `width` y `height` del `<canvas id="board">` en `index.html` para que coincida (`COLS × BLOCK` × `ROWS × BLOCK`).
