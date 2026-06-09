@@ -56,6 +56,10 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
   Ultra rankean por score; Sprint por tiempo. El mejor récord de cada modo se muestra
   bajo su botón en la pantalla de selección. La nueva marca se resalta con ★ en el
   overlay de fin de partida.
+- **Estadísticas post-partida**: el overlay de fin de juego muestra métricas de
+  la partida — piezas colocadas, distribución de limpiezas (singles / dobles /
+  triples / Tetris), T-Spins logrados y APM (acciones por minuto). Se guardan
+  junto al score en `localStorage` para histórico.
 - **Efectos visuales por limpieza de líneas**: al completar filas, éstas se
   iluminan en blanco ~120 ms antes de desaparecer (flash de fila), y al
   desaparecer explotan en **partículas de colores** que saltan desde cada celda
