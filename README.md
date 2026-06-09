@@ -56,6 +56,10 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
   Ultra rankean por score; Sprint por tiempo. El mejor récord de cada modo se muestra
   bajo su botón en la pantalla de selección. La nueva marca se resalta con ★ en el
   overlay de fin de partida.
+- **Diseño sonoro completo**: sonido al asentar pieza (lock), al limpiar líneas
+  (1–4 tonos ascendentes según la cantidad), al hacer hard drop y al subir de nivel.
+  Se suma a los sonidos de bonus ya existentes (combo, T-Spin, B2B, Perfect Clear).
+  Todo sintetizado con Web Audio API sin archivos externos.
 - **Estadísticas post-partida**: el overlay de fin de juego muestra métricas de
   la partida — piezas colocadas, distribución de limpiezas (singles / dobles /
   triples / Tetris), T-Spins logrados y APM (acciones por minuto). Se guardan
