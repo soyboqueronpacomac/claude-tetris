@@ -105,7 +105,8 @@ let audioCtx = null;
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, nextSpecialAt, freezeUntil, justGotTetris, combo, b2bActive, lastActionWasRotation,
     energy, skillMenuOpen, holdPiece, holdUsed, slowActive, slowUntil, peekQueue, peekUntil, undoSnapshot,
-    gameMode, modeStartTime, pausedAt;
+    gameMode, modeStartTime, pausedAt,
+    particles, pendingClear, shakeUntil, shakeIntensity, shakeDuration;
 
 function readThemeColors() {
   const styles = getComputedStyle(document.documentElement);
@@ -329,6 +330,7 @@ function handleLineClear(cleared, tspin) {
     playB2BSound();
   }
   b2bActive = isTetris;
+  if (isTetris) triggerShake(300, 3);
 
   combo++;
   if (combo > 1) {
@@ -348,6 +350,7 @@ function handleLineClear(cleared, tspin) {
     score += (PERFECT_CLEAR_BONUS[cleared] || 0) * level;
     showFloatingText('PERFECT CLEAR!', FX_COLORS.perfect);
     playPerfectClearSound();
+    triggerShake(500, 5);
   }
 
   energy = Math.min(MAX_ENERGY, energy + ENERGY_PER_LINE * cleared);
@@ -389,15 +392,22 @@ function takeSnapshot() {
 }
 
 function lockPiece() {
-  undoSnapshot = takeSnapshot(); // captura completa antes de cualquier mutación
+  undoSnapshot = takeSnapshot();
   const special = SPECIAL_EFFECTS[current.type];
-  const tspin = isTSpin(); // se evalúa antes de mezclar: las diagonales de la T nunca son parte de su propia forma
+  const tspin = isTSpin();
   if (special) applyEffect(special.effect, current);
   else merge();
-  const cleared = clearLines();
-  if (cleared) handleLineClear(cleared, tspin);
-  else combo = 0;
-  spawn();
+
+  const fullRows = [];
+  for (let r = 0; r < ROWS; r++)
+    if (board[r].every(v => v !== 0)) fullRows.push(r);
+
+  if (fullRows.length) {
+    pendingClear = { rowIndices: fullRows, startTime: performance.now(), duration: 120, tspin };
+  } else {
+    combo = 0;
+    spawn();
+  }
 }
 
 function spawn() {
@@ -482,6 +492,59 @@ function drawFloatingTexts() {
     ctx.fillText(ft.text, canvas.width / 2, canvas.height / 2 - 60 + i * 28 + yOffset);
     ctx.restore();
   });
+}
+
+function triggerShake(duration, intensity) {
+  shakeUntil     = performance.now() + duration;
+  shakeIntensity = intensity;
+  shakeDuration  = duration;
+}
+
+function spawnRowParticles(y) {
+  for (let c = 0; c < COLS; c++) {
+    const color = COLORS[Math.abs(board[y][c])] || '#ffffff';
+    for (let k = 0; k < 3; k++) {
+      particles.push({
+        x0:      (c + 0.5) * BLOCK + (Math.random() - 0.5) * BLOCK * 0.8,
+        y0:      (y + 0.5) * BLOCK,
+        vx:      (Math.random() - 0.5) * 160,
+        vy:      -80 - Math.random() * 120,
+        color,
+        born:    performance.now(),
+        dur:     500 + Math.random() * 400,
+        size:    2 + Math.random() * 4,
+      });
+    }
+  }
+  if (particles.length > 350) particles.splice(0, particles.length - 350);
+}
+
+function drawParticles() {
+  const now = performance.now();
+  particles = particles.filter(p => now - p.born < p.dur);
+  if (!particles.length) return;
+  ctx.save();
+  particles.forEach(p => {
+    const t     = (now - p.born) / 1000;
+    const alpha = Math.max(0, 1 - (now - p.born) / p.dur);
+    const x     = p.x0 + p.vx * t;
+    const y     = p.y0 + p.vy * t + 0.5 * 300 * t * t;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle   = p.color;
+    ctx.fillRect(x - p.size / 2, y - p.size / 2, p.size, p.size);
+  });
+  ctx.restore();
+}
+
+function finalizeClear() {
+  const { rowIndices, tspin } = pendingClear;
+  rowIndices.forEach(y => spawnRowParticles(y));
+  pendingClear = null;
+  const cleared = clearLines();
+  if (gameOver) return;
+  if (cleared) handleLineClear(cleared, tspin);
+  else combo = 0;
+  spawn();
 }
 
 // Sonido sintetizado vía Web Audio API — sin archivos externos, respeta el
@@ -716,6 +779,18 @@ function drawGrid() {
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const nowMs = performance.now();
+  const shaking = nowMs < shakeUntil;
+  if (shaking) {
+    const decay = (shakeUntil - nowMs) / shakeDuration;
+    ctx.save();
+    ctx.translate(
+      (Math.random() - 0.5) * shakeIntensity * decay * 2,
+      (Math.random() - 0.5) * shakeIntensity * decay * 2
+    );
+  }
+
   drawGrid();
 
   // board
@@ -739,8 +814,22 @@ function draw() {
       }
 
   drawFloatingTexts();
+
+  if (pendingClear) {
+    const progress = (performance.now() - pendingClear.startTime) / pendingClear.duration;
+    const alpha = Math.max(0, 0.85 * (1 - progress));
+    ctx.save();
+    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+    pendingClear.rowIndices.forEach(r => ctx.fillRect(0, r * BLOCK, COLS * BLOCK, BLOCK));
+    ctx.restore();
+  }
+
+  drawParticles();
+
   if (peekQueue) drawPeekOverlay();
   if (skillMenuOpen) drawSkillMenu();
+
+  if (shaking) ctx.restore();
 }
 
 function drawHoldPiece() {
@@ -902,6 +991,17 @@ function loop(ts) {
     animId = requestAnimationFrame(loop);
     return;
   }
+  if (pendingClear) {
+    lastTime = ts; // evita salto de dt cuando termina el flash
+    if (performance.now() - pendingClear.startTime >= pendingClear.duration) {
+      finalizeClear();
+    }
+    if (!gameOver) {
+      draw();
+      animId = requestAnimationFrame(loop);
+    }
+    return;
+  }
   if (gameMode === 'ultra' && performance.now() - modeStartTime >= ULTRA_DURATION) {
     endUltraGame();
     return;
@@ -960,6 +1060,11 @@ function init() {
   peekQueue = null;
   peekUntil = 0;
   undoSnapshot = null;
+  particles     = [];
+  pendingClear  = null;
+  shakeUntil    = 0;
+  shakeIntensity = 0;
+  shakeDuration  = 1;
   lastTime = performance.now();
   next = nextPiece();
   spawn();
@@ -977,7 +1082,7 @@ document.addEventListener('keydown', e => {
 
   if (e.code === 'KeyE') {
     if (skillMenuOpen) { skillMenuOpen = false; return; }
-    if (energy >= MAX_ENERGY) { skillMenuOpen = true; return; }
+    if (energy >= MAX_ENERGY && !pendingClear) { skillMenuOpen = true; return; }
     return;
   }
   if (e.code === 'Escape' && skillMenuOpen) { skillMenuOpen = false; return; }
