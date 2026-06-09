@@ -309,8 +309,10 @@ function clearLines() {
       endSprintGame();
       return cleared;
     }
+    const prevLevel = level;
     level = Math.floor(lines / 10) + 1;
     if (!slowActive) dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    if (level > prevLevel) playLevelUpSound();
     if (cleared === 4) justGotTetris = true;
     for (let r = 0; r < ROWS; r++)
       for (let c = 0; c < COLS; c++)
@@ -326,6 +328,7 @@ function clearLines() {
 function handleLineClear(cleared, tspin) {
   clearsByType[cleared] = (clearsByType[cleared] || 0) + 1;
   if (tspin) tspinsCount++;
+  playLineClearSound(cleared);
   const table = tspin ? TSPIN_LINE_SCORES : LINE_SCORES;
   let gained = (table[cleared] || 0) * level;
 
@@ -370,6 +373,7 @@ function ghostY() {
 }
 
 function hardDrop() {
+  playHardDropSound();
   const gy = ghostY();
   score += (gy - current.y) * 2;
   current.y = gy;
@@ -400,6 +404,7 @@ function takeSnapshot() {
 function lockPiece() {
   undoSnapshot = takeSnapshot();
   piecesPlaced++;
+  playLockSound();
   const special = SPECIAL_EFFECTS[current.type];
   const tspin = isTSpin();
   if (special) applyEffect(special.effect, current);
@@ -604,6 +609,25 @@ function playPerfectClearSound() {
 function playSkillSound() {
   playTone(440, 0.08, 'square', 0, 0.08);
   playTone(660, 0.12, 'square', 0.06, 0.06);
+}
+
+function playLockSound() {
+  playTone(140, 0.06, 'square', 0, 0.06);
+}
+
+function playHardDropSound() {
+  playTone(90, 0.08, 'triangle', 0, 0.14);
+}
+
+function playLineClearSound(cleared) {
+  const freqs = [330, 415, 523, 659]; // E4, Ab4, C5, E5
+  for (let i = 0; i < Math.min(cleared, 4); i++) {
+    playTone(freqs[i], 0.12, 'sine', i * 0.045, 0.1);
+  }
+}
+
+function playLevelUpSound() {
+  [392, 523, 659].forEach((f, i) => playTone(f, 0.1, 'triangle', i * 0.055, 0.1));
 }
 
 // --- Sistema de habilidades ---
