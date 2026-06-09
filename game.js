@@ -75,6 +75,8 @@ const PEEK_DURATION = 10000;
 
 const SPRINT_LINES   = 40;
 const ULTRA_DURATION = 120000;
+const DAS = 150; // ms de delay inicial antes del auto-repeat horizontal
+const ARR = 30;  // ms entre cada shift automático
 
 const MAX_RECORDS = 5;
 const SCORES_KEY  = mode => `tetris-scores-${mode}`;
@@ -106,7 +108,8 @@ let audioCtx = null;
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, nextSpecialAt, freezeUntil, justGotTetris, combo, b2bActive, lastActionWasRotation,
     energy, skillMenuOpen, holdPiece, holdUsed, slowActive, slowUntil, peekQueue, peekUntil, undoSnapshot,
     gameMode, modeStartTime, pausedAt,
-    particles, pendingClear, shakeUntil, shakeIntensity, shakeDuration;
+    particles, pendingClear, shakeUntil, shakeIntensity, shakeDuration,
+    keyHeld, dasAt, lastArr;
 
 function readThemeColors() {
   const styles = getComputedStyle(document.documentElement);
@@ -1026,6 +1029,22 @@ function loop(ts) {
       if (gameOver) return;
     }
   }
+  // DAS/ARR — movimiento continuo al sostener ← o →
+  if (!pendingClear && !skillMenuOpen) {
+    const now = performance.now();
+    for (const [dir, dx] of [['left', -1], ['right', 1]]) {
+      if (keyHeld[dir] && now >= dasAt[dir]) {
+        if (!lastArr[dir] || now - lastArr[dir] >= ARR) {
+          if (!collide(current.shape, current.x + dx, current.y)) {
+            current.x += dx;
+            lastActionWasRotation = false;
+          }
+          lastArr[dir] = now;
+        }
+      }
+    }
+  }
+
   draw();
   animId = requestAnimationFrame(loop);
 }
@@ -1065,6 +1084,9 @@ function init() {
   shakeUntil    = 0;
   shakeIntensity = 0;
   shakeDuration  = 1;
+  keyHeld = { left: false, right: false };
+  dasAt   = { left: 0,     right: 0     };
+  lastArr = { left: 0,     right: 0     };
   lastTime = performance.now();
   next = nextPiece();
   spawn();
@@ -1095,15 +1117,25 @@ document.addEventListener('keydown', e => {
 
   switch (e.code) {
     case 'ArrowLeft':
-      if (!collide(current.shape, current.x - 1, current.y)) {
-        current.x--;
-        lastActionWasRotation = false;
+      if (!e.repeat) {
+        if (!collide(current.shape, current.x - 1, current.y)) {
+          current.x--;
+          lastActionWasRotation = false;
+        }
+        keyHeld.left = true;
+        dasAt.left   = performance.now() + DAS;
+        lastArr.left = 0;
       }
       break;
     case 'ArrowRight':
-      if (!collide(current.shape, current.x + 1, current.y)) {
-        current.x++;
-        lastActionWasRotation = false;
+      if (!e.repeat) {
+        if (!collide(current.shape, current.x + 1, current.y)) {
+          current.x++;
+          lastActionWasRotation = false;
+        }
+        keyHeld.right = true;
+        dasAt.right   = performance.now() + DAS;
+        lastArr.right = 0;
       }
       break;
     case 'ArrowDown':
@@ -1119,6 +1151,11 @@ document.addEventListener('keydown', e => {
       break;
   }
   updateHUD();
+});
+
+document.addEventListener('keyup', e => {
+  if (e.code === 'ArrowLeft')  keyHeld.left  = false;
+  if (e.code === 'ArrowRight') keyHeld.right = false;
 });
 
 document.querySelectorAll('.mode-btn').forEach(btn =>
