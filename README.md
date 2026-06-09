@@ -52,6 +52,10 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
   puntuación por jugadas hábiles, con texto flotante y sonido sintetizado al activarse.
 - **Modos de juego**: pantalla de selección al inicio con 4 modos (Classic, Sprint,
   Ultra, Zen), cada uno con condiciones y HUD propios.
+- **Tabla de puntuaciones**: top 5 por modo guardado en `localStorage`. Classic y
+  Ultra rankean por score; Sprint por tiempo. El mejor récord de cada modo se muestra
+  bajo su botón en la pantalla de selección. La nueva marca se resalta con ★ en el
+  overlay de fin de partida.
 - **Barra de energía y sistema de habilidades**: limpiar líneas carga la barra
   (25 por línea, máximo 100). Al llenarse, `E` abre un menú canvas con 5 habilidades
   activas que el jugador elige con `1`–`5`.
