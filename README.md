@@ -107,7 +107,7 @@ Después abre `http://localhost:8000` en el navegador.
 
 | Tecla     | Acción                            |
 | --------- | --------------------------------- |
-| `←` / `→` | Mover la pieza horizontalmente    |
+| `←` / `→` | Mover la pieza (sostener: DAS/ARR — movimiento continuo) |
 | `↑` o `X` | Rotar la pieza en sentido horario |
 | `↓`       | Soft drop (bajar más rápido)      |
 | `Espacio` | Hard drop (caída instantánea)     |
@@ -340,6 +340,8 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `SLOW_DURATION` | Duración de la Habilidad 3 en ms          | `10000`               |
 | `SLOW_DROP_INTERVAL` | `dropInterval` mínimo durante el ralentizado | `3000`        |
 | `PEEK_DURATION` | Duración del overlay de vista previa en ms | `10000`              |
+| `DAS`          | Delay antes de que empiece el auto-repeat horizontal (ms) | `150` |
+| `ARR`          | Intervalo entre shifts automáticos durante el repeat (ms) | `30`  |
 | `SPRINT_LINES` | Número de líneas objetivo en modo Sprint   | `40`                  |
 | `ULTRA_DURATION` | Duración del modo Ultra en ms            | `120000` (2 min)      |
 
