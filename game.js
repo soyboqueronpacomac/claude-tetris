@@ -73,6 +73,9 @@ const SLOW_DURATION = 10000;
 const SLOW_DROP_INTERVAL = 3000;
 const PEEK_DURATION = 10000;
 
+const SPRINT_LINES   = 40;
+const ULTRA_DURATION = 120000;
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -85,9 +88,12 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
-const holdCanvas = document.getElementById('hold-canvas');
-const holdCtx    = holdCanvas.getContext('2d');
-const energyFill = document.getElementById('energy-bar-fill');
+const holdCanvas        = document.getElementById('hold-canvas');
+const holdCtx           = holdCanvas.getContext('2d');
+const energyFill        = document.getElementById('energy-bar-fill');
+const modeSelectOverlay = document.getElementById('mode-select');
+const timerSection      = document.getElementById('timer-section');
+const timerEl           = document.getElementById('timer');
 
 const THEME_KEY = 'tetris-theme';
 let themeColors = { gridLine: '#22222e', blockHighlight: 'rgba(255,255,255,0.12)' };
@@ -95,7 +101,8 @@ let floatingTexts = [];
 let audioCtx = null;
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, nextSpecialAt, freezeUntil, justGotTetris, combo, b2bActive, lastActionWasRotation,
-    energy, skillMenuOpen, holdPiece, holdUsed, slowActive, slowUntil, peekQueue, peekUntil, undoSnapshot;
+    energy, skillMenuOpen, holdPiece, holdUsed, slowActive, slowUntil, peekQueue, peekUntil, undoSnapshot,
+    gameMode, modeStartTime, pausedAt;
 
 function readThemeColors() {
   const styles = getComputedStyle(document.documentElement);
@@ -287,6 +294,13 @@ function clearLines() {
   }
   if (cleared) {
     lines += cleared;
+    if (gameMode === 'sprint' && lines >= SPRINT_LINES) {
+      level = Math.floor(lines / 10) + 1;
+      if (!slowActive) dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+      updateHUD();
+      endSprintGame();
+      return cleared;
+    }
     level = Math.floor(lines / 10) + 1;
     if (!slowActive) dropInterval = Math.max(100, 1000 - (level - 1) * 90);
     if (cleared === 4) justGotTetris = true;
@@ -390,7 +404,8 @@ function spawn() {
   holdUsed = false;
   peekQueue = null;
   if (collide(current.shape, current.x, current.y)) {
-    endGame();
+    if (gameMode === 'zen') { zenMercy(); }
+    else                    { endGame(); }
   }
   drawNext();
 }
@@ -402,7 +417,9 @@ function updateEnergyBar() {
 
 function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
-  linesEl.textContent = lines;
+  linesEl.textContent = (gameMode === 'sprint')
+    ? `${Math.min(lines, SPRINT_LINES)} / ${SPRINT_LINES}`
+    : lines;
   levelEl.textContent = level;
   updateEnergyBar();
 }
@@ -752,6 +769,51 @@ function drawNext() {
       }
 }
 
+function startGame(mode) {
+  gameMode = mode;
+  modeSelectOverlay.classList.add('hidden');
+  init();
+}
+
+function formatTime(ms) {
+  const s  = Math.max(0, ms) / 1000;
+  const m  = Math.floor(s / 60);
+  const ss = Math.floor(s % 60);
+  const t  = Math.floor((s % 1) * 10);
+  return `${m}:${ss.toString().padStart(2, '0')}.${t}`;
+}
+
+function updateTimer() {
+  if (gameMode === 'sprint') {
+    timerEl.textContent = formatTime(performance.now() - modeStartTime);
+  } else if (gameMode === 'ultra') {
+    timerEl.textContent = formatTime(ULTRA_DURATION - (performance.now() - modeStartTime));
+  }
+}
+
+function endSprintGame() {
+  gameOver = true;
+  cancelAnimationFrame(animId);
+  const elapsed = performance.now() - modeStartTime;
+  overlayTitle.textContent = 'SPRINT';
+  overlayScore.textContent = `Tiempo: ${formatTime(elapsed)}  |  Puntuación: ${score.toLocaleString()}`;
+  overlay.classList.remove('hidden');
+}
+
+function endUltraGame() {
+  gameOver = true;
+  cancelAnimationFrame(animId);
+  timerEl.textContent = '0:00.0';
+  overlayTitle.textContent = 'TIEMPO AGOTADO';
+  overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
+  overlay.classList.remove('hidden');
+}
+
+function zenMercy() {
+  board.splice(0, 4);
+  for (let i = 0; i < 4; i++) board.unshift(new Array(COLS).fill(0));
+}
+
 function endGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
@@ -763,14 +825,19 @@ function endGame() {
 function togglePause() {
   if (gameOver) return;
   paused = !paused;
-  if (!paused) {
-    lastTime = performance.now();
-    loop(lastTime);
-  } else {
+  if (paused) {
+    pausedAt = performance.now();
     cancelAnimationFrame(animId);
     overlayTitle.textContent = 'PAUSA';
     overlayScore.textContent = '';
     overlay.classList.remove('hidden');
+  } else {
+    if (gameMode === 'sprint' || gameMode === 'ultra') {
+      modeStartTime += performance.now() - pausedAt;
+    }
+    overlay.classList.add('hidden');
+    lastTime = performance.now();
+    animId = requestAnimationFrame(loop);
   }
 }
 
@@ -781,6 +848,11 @@ function loop(ts) {
     animId = requestAnimationFrame(loop);
     return;
   }
+  if (gameMode === 'ultra' && performance.now() - modeStartTime >= ULTRA_DURATION) {
+    endUltraGame();
+    return;
+  }
+  updateTimer();
   const dt = ts - lastTime;
   lastTime = ts;
   dropAccum += dt;
@@ -805,6 +877,11 @@ function loop(ts) {
 }
 
 function init() {
+  modeStartTime = performance.now();
+  pausedAt = 0;
+  timerSection.style.display = (gameMode === 'sprint' || gameMode === 'ultra') ? 'flex' : 'none';
+  if (gameMode === 'sprint') timerEl.textContent = '0:00.0';
+  if (gameMode === 'ultra')  timerEl.textContent = '2:00.0';
   board = createBoard();
   score = 0;
   lines = 0;
@@ -885,7 +962,20 @@ document.addEventListener('keydown', e => {
   updateHUD();
 });
 
-restartBtn.addEventListener('click', init);
+document.querySelectorAll('.mode-btn').forEach(btn =>
+  btn.addEventListener('click', () => startGame(btn.dataset.mode))
+);
+
+restartBtn.addEventListener('click', () => {
+  overlay.classList.add('hidden');
+  init();
+});
+
+document.getElementById('mode-change-btn').addEventListener('click', () => {
+  cancelAnimationFrame(animId);
+  gameOver = false;
+  overlay.classList.add('hidden');
+  modeSelectOverlay.classList.remove('hidden');
+});
 
 initTheme();
-init();

@@ -148,6 +148,71 @@ body {
   box-shadow: 0 0 6px rgba(255, 213, 79, 0.6);
 }
 
+/* Timer: oculto por defecto, JS lo muestra en Sprint/Ultra */
+#timer-section { display: none; }
+
+/* ---- Selector de modo ---- */
+.mode-select-box { gap: 20px; }
+
+.mode-select-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+.mode-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.mode-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 24px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.mode-btn:hover {
+  border-color: var(--accent);
+  background: var(--kbd-bg);
+}
+
+.mode-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 1px;
+}
+
+.mode-desc {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Botón secundario "Cambiar modo" en overlay de fin de partida */
+#mode-change-btn {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+#mode-change-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* ---- Controles ---- */
 .controls ul {
   list-style: none;

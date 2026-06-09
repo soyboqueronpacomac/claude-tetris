@@ -50,6 +50,8 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Sistema de puntuación** clásico de Tetris (100 / 300 / 500 / 800 multiplicado por nivel).
 - **Combos encadenados, T-Spin, Back-to-Back Tetris y Perfect Clear**: bonus de
   puntuación por jugadas hábiles, con texto flotante y sonido sintetizado al activarse.
+- **Modos de juego**: pantalla de selección al inicio con 4 modos (Classic, Sprint,
+  Ultra, Zen), cada uno con condiciones y HUD propios.
 - **Barra de energía y sistema de habilidades**: limpiar líneas carga la barra
   (25 por línea, máximo 100). Al llenarse, `E` abre un menú canvas con 5 habilidades
   activas que el jugador elige con `1`–`5`.
@@ -101,8 +103,26 @@ Después abre `http://localhost:8000` en el navegador.
 | `Espacio` | Hard drop (caída instantánea)     |
 | `P`       | Pausar / reanudar                 |
 | `E`       | Abrir/cerrar menú de habilidades (requiere barra llena) |
-| `1`–`5`   | Elegir habilidad (con el menú abierto) |
+| `1`–`5`   | Elegir habilidad (con el menú abierto)  |
 | `Esc`     | Cerrar menú de habilidades sin gastar energía |
+
+---
+
+### Modos de juego
+
+Al abrir el juego aparece una pantalla de selección. También podés volver a ella
+desde el overlay final con "Cambiar modo".
+
+| Modo        | Objetivo                          | Condición de fin                        | Timer          |
+| ----------- | --------------------------------- | --------------------------------------- | -------------- |
+| **Classic** | Puntuación máxima, sin límites    | Pieza no puede spawnear                 | —              |
+| **Sprint**  | Llegar a 40 líneas lo más rápido  | `lines ≥ 40`                            | Sube desde 0   |
+| **Ultra**   | Máxima puntuación en 2 minutos    | Tiempo agotado                          | Baja desde 2:00|
+| **Zen**     | Jugar sin presión, sin Game Over  | Nunca (tablero lleno → limpieza de gracia)| —           |
+
+En **Sprint** el marcador de líneas muestra `X / 40`. En **Ultra** el panel
+muestra un contador regresivo que se pausa automáticamente cuando el juego está
+pausado.
 
 ---
 
@@ -307,6 +327,8 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `SLOW_DURATION` | Duración de la Habilidad 3 en ms          | `10000`               |
 | `SLOW_DROP_INTERVAL` | `dropInterval` mínimo durante el ralentizado | `3000`        |
 | `PEEK_DURATION` | Duración del overlay de vista previa en ms | `10000`              |
+| `SPRINT_LINES` | Número de líneas objetivo en modo Sprint   | `40`                  |
+| `ULTRA_DURATION` | Duración del modo Ultra en ms            | `120000` (2 min)      |
 
 > Si cambias `COLS`, `ROWS` o `BLOCK`, recuerda ajustar también `width` y `height` del `<canvas id="board">` en `index.html` para que coincida (`COLS × BLOCK` × `ROWS × BLOCK`).
 
