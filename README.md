@@ -56,6 +56,12 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
   Ultra rankean por score; Sprint por tiempo. El mejor récord de cada modo se muestra
   bajo su botón en la pantalla de selección. La nueva marca se resalta con ★ en el
   overlay de fin de partida.
+- **Efectos visuales por limpieza de líneas**: al completar filas, éstas se
+  iluminan en blanco ~120 ms antes de desaparecer (flash de fila), y al
+  desaparecer explotan en **partículas de colores** que saltan desde cada celda
+  y se desvanecen con gravedad animada. Un **screen shake** suave sacude el
+  tablero en Tetris (4 líneas) y Perfect Clear para reforzar el impacto visual.
+  Todo renderizado en el canvas, sin dependencias externas.
 - **Barra de energía y sistema de habilidades**: limpiar líneas carga la barra
   (25 por línea, máximo 100). Al llenarse, `E` abre un menú canvas con 5 habilidades
   activas que el jugador elige con `1`–`5`.
@@ -170,9 +176,12 @@ init()
   └─ requestAnimationFrame(loop)
         ↓
    loop(timestamp)
+     ├─ si pendingClear activo → anima el flash y espera 120 ms
+     │     └─ al expirar: finalizeClear() → spawnRowParticles() → clearLines()
+     │                                    → handleLineClear() → spawn()
      ├─ acumula dt
      ├─ si dt ≥ dropInterval → baja la pieza o llama a lockPiece()
-     ├─ draw()  (grid + tablero + ghost + pieza actual)
+     ├─ draw()  (grid + tablero + ghost + pieza + flash + partículas)
      └─ requestAnimationFrame(loop)
 
    keydown → mover / rotar / soft-drop / hard-drop / pausa
