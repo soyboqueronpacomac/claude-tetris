@@ -50,6 +50,11 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Sistema de puntuación** clásico de Tetris (100 / 300 / 500 / 800 multiplicado por nivel).
 - **Combos encadenados, T-Spin, Back-to-Back Tetris y Perfect Clear**: bonus de
   puntuación por jugadas hábiles, con texto flotante y sonido sintetizado al activarse.
+- **Barra de energía y sistema de habilidades**: limpiar líneas carga la barra
+  (25 por línea, máximo 100). Al llenarse, `E` abre un menú canvas con 5 habilidades
+  activas que el jugador elige con `1`–`5`.
+- **Reserva de pieza (hold)**: guarda la pieza actual para usarla más tarde; se
+  recarga en cada asentamiento.
 - **Niveles** que aumentan cada 10 líneas y aceleran la caída.
 - **Pausa** y **Game Over** con opción de reinicio.
 
@@ -95,6 +100,9 @@ Después abre `http://localhost:8000` en el navegador.
 | `↓`       | Soft drop (bajar más rápido)      |
 | `Espacio` | Hard drop (caída instantánea)     |
 | `P`       | Pausar / reanudar                 |
+| `E`       | Abrir/cerrar menú de habilidades (requiere barra llena) |
+| `1`–`5`   | Elegir habilidad (con el menú abierto) |
+| `Esc`     | Cerrar menú de habilidades sin gastar energía |
 
 ---
 
@@ -107,7 +115,7 @@ El juego se compone de tres archivos que cooperan:
 Define la estructura visual:
 
 - Un `<canvas id="board">` de **300 × 600** píxeles donde se renderiza el tablero.
-- Un panel lateral con `SCORE`, `LINES`, `LEVEL`, vista de la siguiente pieza y la lista de controles.
+- Un panel lateral con `SCORE`, `LINES`, `LEVEL`, vista de la siguiente pieza (`NEXT`), ranura de reserva (`HOLD`), barra de energía (`ENERGY`) y la lista de controles.
 - Un overlay para los estados **PAUSA** y **GAME OVER**.
 
 ### 2. `style.css`
@@ -231,6 +239,28 @@ desplazamiento hacia arriba — el mismo enfoque "todo en el canvas" que usa
 `AudioContext` se crea de forma perezosa en el primer `keydown`, respetando la
 política de gesto del usuario de los navegadores.
 
+### Barra de energía y sistema de habilidades
+
+Cada línea eliminada carga **25 puntos de energía** (máximo 100). Cuando la barra
+llega al tope, se ilumina en dorado y el jugador puede presionar `E` para abrir
+un **menú canvas** que congela el temporizador de caída. Desde ahí elige una de
+5 habilidades con `1`–`5`; `E` o `Esc` cierran el menú sin gastar energía.
+
+Todas las habilidades cuestan los 100 puntos acumulados:
+
+| # | Habilidad | Efecto |
+| - | --------- | ------ |
+| **1** | **Ver próximas 5 piezas** | Muestra un overlay canvas 10 s con las próximas 5 piezas (la real `next` + 4 aleatorias del pool normal). Se invalida en el siguiente asentamiento. |
+| **2** | **Intercambiar pieza** | Reemplaza la pieza actual por una aleatoria del pool normal (tipos 1–7) en la posición de spawn. |
+| **3** | **Ralentizar 10 s** | Fija `dropInterval ≥ 3000 ms` durante 10 segundos. Si se activa mientras ya está activa, extiende el temporizador. Al expirar, restaura la velocidad del nivel. |
+| **4** | **Deshacer colocación** | Restaura el estado completo del tablero, pieza actual, siguiente pieza, score, líneas, nivel, combo y energía al momento anterior al último asentamiento. Solo disponible si existe un snapshot previo. |
+| **5** | **Reservar pieza (hold)** | Guarda la pieza actual en la ranura HOLD y saca la anterior (o genera una nueva si la ranura estaba vacía). Solo disponible una vez por asentamiento (`holdUsed` se resetea en cada `spawn()`). |
+
+El panel lateral muestra la ranura **HOLD** (canvas) y la **barra de energía**
+(barra CSS con transición suave y efecto glow dorado al llenarse). El menú de
+habilidades dibuja en el mismo canvas del tablero con `ctx.roundRect`, marcando
+en gris las habilidades no disponibles en ese momento.
+
 ---
 
 ## Tecnologías
@@ -272,6 +302,11 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `PERFECT_CLEAR_BONUS` | Bonus extra por dejar el tablero vacío | `[0,800,1200,1800,2000]` |
 | `B2B_MULTIPLIER` | Multiplicador por Tetris consecutivos (Back-to-Back) | `1.5` |
 | `dropInterval` | Velocidad inicial de caída en ms         | `1000`                |
+| `ENERGY_PER_LINE` | Energía ganada por cada línea eliminada  | `25`                  |
+| `MAX_ENERGY` | Energía máxima para activar habilidades     | `100`                 |
+| `SLOW_DURATION` | Duración de la Habilidad 3 en ms          | `10000`               |
+| `SLOW_DROP_INTERVAL` | `dropInterval` mínimo durante el ralentizado | `3000`        |
+| `PEEK_DURATION` | Duración del overlay de vista previa en ms | `10000`              |
 
 > Si cambias `COLS`, `ROWS` o `BLOCK`, recuerda ajustar también `width` y `height` del `<canvas id="board">` en `index.html` para que coincida (`COLS × BLOCK` × `ROWS × BLOCK`).
 

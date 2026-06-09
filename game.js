@@ -67,6 +67,12 @@ const PERFECT_CLEAR_BONUS = [0, 800, 1200, 1800, 2000];
 const B2B_MULTIPLIER = 1.5;
 const FX_COLORS = { combo: '#7aa2f7', tspin: '#ba68c8', b2b: '#ffd54f', perfect: '#ffd700' };
 
+const ENERGY_PER_LINE = 25;
+const MAX_ENERGY = 100;
+const SLOW_DURATION = 10000;
+const SLOW_DROP_INTERVAL = 3000;
+const PEEK_DURATION = 10000;
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -79,13 +85,17 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
+const holdCanvas = document.getElementById('hold-canvas');
+const holdCtx    = holdCanvas.getContext('2d');
+const energyFill = document.getElementById('energy-bar-fill');
 
 const THEME_KEY = 'tetris-theme';
 let themeColors = { gridLine: '#22222e', blockHighlight: 'rgba(255,255,255,0.12)' };
 let floatingTexts = [];
 let audioCtx = null;
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, nextSpecialAt, freezeUntil, justGotTetris, combo, b2bActive, lastActionWasRotation;
+let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, nextSpecialAt, freezeUntil, justGotTetris, combo, b2bActive, lastActionWasRotation,
+    energy, skillMenuOpen, holdPiece, holdUsed, slowActive, slowUntil, peekQueue, peekUntil, undoSnapshot;
 
 function readThemeColors() {
   const styles = getComputedStyle(document.documentElement);
@@ -103,6 +113,7 @@ function applyTheme(theme) {
   if (current) {
     draw();
     drawNext();
+    drawHoldPiece();
   }
 }
 
@@ -277,7 +288,7 @@ function clearLines() {
   if (cleared) {
     lines += cleared;
     level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    if (!slowActive) dropInterval = Math.max(100, 1000 - (level - 1) * 90);
     if (cleared === 4) justGotTetris = true;
     for (let r = 0; r < ROWS; r++)
       for (let c = 0; c < COLS; c++)
@@ -322,6 +333,7 @@ function handleLineClear(cleared, tspin) {
     playPerfectClearSound();
   }
 
+  energy = Math.min(MAX_ENERGY, energy + ENERGY_PER_LINE * cleared);
   updateHUD();
 }
 
@@ -349,7 +361,18 @@ function softDrop() {
   }
 }
 
+function takeSnapshot() {
+  return {
+    board:         board.map(row => [...row]),
+    current:       { type: current.type, x: current.x, y: current.y, shape: current.shape.map(r => [...r]) },
+    next:          { type: next.type, x: next.x, y: next.y, shape: next.shape.map(r => [...r]) },
+    score, lines, level, combo, b2bActive, dropInterval,
+    justGotTetris, nextSpecialAt, energy,
+  };
+}
+
 function lockPiece() {
+  undoSnapshot = takeSnapshot(); // captura completa antes de cualquier mutación
   const special = SPECIAL_EFFECTS[current.type];
   const tspin = isTSpin(); // se evalúa antes de mezclar: las diagonales de la T nunca son parte de su propia forma
   if (special) applyEffect(special.effect, current);
@@ -364,16 +387,24 @@ function spawn() {
   current = next;
   next = nextPiece();
   lastActionWasRotation = false;
+  holdUsed = false;
+  peekQueue = null;
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
   drawNext();
 }
 
+function updateEnergyBar() {
+  energyFill.style.width = (energy / MAX_ENERGY * 100) + '%';
+  energyFill.classList.toggle('energy-full', energy >= MAX_ENERGY);
+}
+
 function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
   linesEl.textContent = lines;
   levelEl.textContent = level;
+  updateEnergyBar();
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -480,6 +511,172 @@ function playPerfectClearSound() {
   [523, 659, 784, 1047].forEach((f, i) => playTone(f, 0.22, 'triangle', i * 0.09, 0.12));
 }
 
+function playSkillSound() {
+  playTone(440, 0.08, 'square', 0, 0.08);
+  playTone(660, 0.12, 'square', 0.06, 0.06);
+}
+
+// --- Sistema de habilidades ---
+
+function useSkillPreview() {
+  // Usa randomNormalPiece() en las posiciones especulativas para no mutar
+  // justGotTetris/nextSpecialAt (efectos secundarios de nextPiece).
+  peekQueue = [
+    { type: next.type, shape: next.shape.map(r => [...r]) },
+    randomNormalPiece(), randomNormalPiece(), randomNormalPiece(), randomNormalPiece(),
+  ];
+  peekUntil = performance.now() + PEEK_DURATION;
+}
+
+function useSkillSwap() {
+  current = buildPiece(randomNormalPiece().type);
+  lastActionWasRotation = false;
+}
+
+function useSkillSlow() {
+  slowUntil = performance.now() + SLOW_DURATION;
+  if (!slowActive) {
+    slowActive = true;
+    dropInterval = Math.max(dropInterval, SLOW_DROP_INTERVAL);
+  }
+}
+
+function useSkillUndo() {
+  if (!undoSnapshot) return;
+  const s = undoSnapshot;
+  board         = s.board;
+  current       = s.current;
+  next          = s.next;
+  score         = s.score;
+  lines         = s.lines;
+  level         = s.level;
+  combo         = s.combo;
+  b2bActive     = s.b2bActive;
+  dropInterval  = s.dropInterval;
+  justGotTetris = s.justGotTetris;
+  nextSpecialAt = s.nextSpecialAt;
+  energy        = s.energy;
+  lastActionWasRotation = false;
+  undoSnapshot  = null;
+  updateHUD();
+  drawNext();
+  drawHoldPiece();
+}
+
+function useSkillHold() {
+  if (holdUsed) return;
+  if (!holdPiece) {
+    holdPiece = buildPiece(current.type);
+    spawn(); // avanza next → current y resetea holdUsed = false en spawn()
+  } else {
+    const saved = holdPiece;
+    holdPiece = buildPiece(current.type);
+    current = buildPiece(saved.type); // reset a posición spawn con orientación original
+    lastActionWasRotation = false;
+  }
+  holdUsed = true; // se pone DESPUÉS de spawn() para que spawn no lo deje en false
+  drawHoldPiece();
+}
+
+function activateSkill(n) {
+  const available = [
+    true,                      // 1 - preview
+    true,                      // 2 - swap
+    true,                      // 3 - slow
+    undoSnapshot !== null,     // 4 - undo
+    !holdUsed,                 // 5 - hold
+  ];
+  if (!available[n - 1]) return;
+  energy = 0;
+  skillMenuOpen = false;
+  updateEnergyBar();
+  playSkillSound();
+  switch (n) {
+    case 1: useSkillPreview(); break;
+    case 2: useSkillSwap();    break;
+    case 3: useSkillSlow();    break;
+    case 4: useSkillUndo();    break;
+    case 5: useSkillHold();    break;
+  }
+}
+
+function drawSkillMenu() {
+  const SKILLS = [
+    { name: 'Ver próximas 5 piezas', available: true },
+    { name: 'Intercambiar pieza',    available: true },
+    { name: 'Ralentizar 10s',        available: true },
+    { name: 'Deshacer colocación',   available: undoSnapshot !== null },
+    { name: 'Reservar pieza (hold)', available: !holdUsed },
+  ];
+  const PX = 20, PY = 55, PW = 260, PH = 330;
+  ctx.save();
+  ctx.fillStyle = 'rgba(10, 10, 28, 0.93)';
+  ctx.strokeStyle = '#7aa2f7';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(PX, PY, PW, PH, 10);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffd54f';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('HABILIDADES', canvas.width / 2, PY + 22);
+
+  ctx.fillStyle = '#888';
+  ctx.font = '11px sans-serif';
+  ctx.fillText(`Energía: ${energy} / ${MAX_ENERGY}   [E / Esc = cerrar]`, canvas.width / 2, PY + 40);
+
+  SKILLS.forEach((sk, i) => {
+    const rowY = PY + 64 + i * 50;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = sk.available ? '#e0e0e0' : '#404055';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText(`[${i + 1}]  ${sk.name}`, PX + 16, rowY);
+    if (!sk.available) {
+      ctx.fillStyle = '#555566';
+      ctx.font = '11px sans-serif';
+      ctx.fillText('No disponible', PX + 16, rowY + 16);
+    }
+  });
+  ctx.restore();
+}
+
+function drawPeekOverlay() {
+  if (!peekQueue || performance.now() > peekUntil) {
+    peekQueue = null;
+    return;
+  }
+  const NB = 20;
+  const PX = canvas.width - 78, PY = 4, PW = 74, PH = 5 * (NB * 2 + 8) + 26;
+  ctx.save();
+  ctx.fillStyle = 'rgba(10, 10, 28, 0.9)';
+  ctx.strokeStyle = '#7aa2f7';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(PX, PY, PW, PH, 6);
+  ctx.fill();
+  ctx.stroke();
+
+  const remaining = Math.ceil((peekUntil - performance.now()) / 1000);
+  ctx.fillStyle = '#ffd54f';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`NEXT 5  ${remaining}s`, PX + PW / 2, PY + 14);
+
+  peekQueue.forEach((piece, i) => {
+    const baseY = PY + 22 + i * (NB * 2 + 8);
+    const shape = piece.shape;
+    for (let r = 0; r < Math.min(shape.length, 2); r++)
+      for (let c = 0; c < Math.min(shape[r].length, 3); c++)
+        if (shape[r][c]) {
+          ctx.fillStyle = COLORS[Math.abs(shape[r][c])];
+          ctx.fillRect(PX + 4 + c * NB + 1, baseY + r * NB + 1, NB - 2, NB - 2);
+        }
+  });
+  ctx.restore();
+}
+
 function drawGrid() {
   ctx.strokeStyle = themeColors.gridLine;
   ctx.lineWidth = 0.5;
@@ -522,6 +719,23 @@ function draw() {
       }
 
   drawFloatingTexts();
+  if (peekQueue) drawPeekOverlay();
+  if (skillMenuOpen) drawSkillMenu();
+}
+
+function drawHoldPiece() {
+  const NB = 30;
+  holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+  if (!holdPiece) return;
+  const shape = holdPiece.shape;
+  const offX = Math.floor((4 - shape[0].length) / 2);
+  const offY = Math.floor((4 - shape.length) / 2);
+  for (let r = 0; r < shape.length; r++)
+    for (let c = 0; c < shape[r].length; c++)
+      if (shape[r][c]) {
+        drawBlock(holdCtx, offX + c, offY + r, shape[r][c], NB);
+        drawIcon(holdCtx, offX + c, offY + r, holdPiece.type, NB);
+      }
 }
 
 function drawNext() {
@@ -561,9 +775,19 @@ function togglePause() {
 }
 
 function loop(ts) {
+  if (skillMenuOpen) {
+    lastTime = ts; // congela el acumulador de caída mientras el menú está abierto
+    draw();
+    animId = requestAnimationFrame(loop);
+    return;
+  }
   const dt = ts - lastTime;
   lastTime = ts;
   dropAccum += dt;
+  if (slowActive && performance.now() > slowUntil) {
+    slowActive = false;
+    dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+  }
   if (ts < freezeUntil) {
     dropAccum = 0;
   } else if (dropAccum >= dropInterval) {
@@ -596,10 +820,20 @@ function init() {
   b2bActive = false;
   lastActionWasRotation = false;
   floatingTexts = [];
+  energy = 0;
+  skillMenuOpen = false;
+  holdPiece = null;
+  holdUsed = false;
+  slowActive = false;
+  slowUntil = 0;
+  peekQueue = null;
+  peekUntil = 0;
+  undoSnapshot = null;
   lastTime = performance.now();
   next = nextPiece();
   spawn();
   updateHUD();
+  drawHoldPiece();
   overlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
@@ -609,6 +843,20 @@ document.addEventListener('keydown', e => {
   getAudioCtx(); // primer gesto del usuario: desbloquea el AudioContext
   if (e.code === 'KeyP') { togglePause(); return; }
   if (paused || gameOver) return;
+
+  if (e.code === 'KeyE') {
+    if (skillMenuOpen) { skillMenuOpen = false; return; }
+    if (energy >= MAX_ENERGY) { skillMenuOpen = true; return; }
+    return;
+  }
+  if (e.code === 'Escape' && skillMenuOpen) { skillMenuOpen = false; return; }
+  if (skillMenuOpen) {
+    const digit = { Digit1: 1, Digit2: 2, Digit3: 3, Digit4: 4, Digit5: 5 }[e.code];
+    if (digit) activateSkill(digit);
+    e.preventDefault();
+    return;
+  }
+
   switch (e.code) {
     case 'ArrowLeft':
       if (!collide(current.shape, current.x - 1, current.y)) {
