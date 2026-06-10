@@ -119,10 +119,24 @@ Después abre `http://localhost:8000` en el navegador.
 | `↑` o `X` | Rotar la pieza en sentido horario |
 | `↓`       | Soft drop (bajar más rápido)      |
 | `Espacio` | Hard drop (caída instantánea)     |
-| `P`       | Pausar / reanudar                 |
+| `P` / `Esc` | Pausar / reanudar                |
 | `E`       | Abrir/cerrar menú de habilidades (requiere barra llena) |
 | `1`–`5`   | Elegir habilidad (con el menú abierto)  |
-| `Esc`     | Cerrar menú de habilidades sin gastar energía |
+| `Esc`     | Cerrar menú de habilidades sin gastar energía (si está abierto) |
+
+---
+
+### Menú de pausa
+
+Pulsando `P` o `Esc` se abre un menú de pausa que bloquea los inputs del juego
+hasta cerrarlo:
+
+- **Reanudar** — vuelve al juego (también con `P`/`Esc`).
+- **Reiniciar** — empieza una nueva partida sin recargar la página, conservando
+  el modo de juego actual.
+- **Nivel inicial** — selector (1-15) que define con qué nivel (y velocidad de
+  caída) empieza la próxima partida. Se persiste en `localStorage`.
+- **Ver controles** — despliega la lista de teclas dentro del propio menú.
 
 ---
 

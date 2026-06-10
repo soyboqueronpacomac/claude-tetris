@@ -99,11 +99,20 @@ const energyFill        = document.getElementById('energy-bar-fill');
 const modeSelectOverlay = document.getElementById('mode-select');
 const timerSection      = document.getElementById('timer-section');
 const timerEl           = document.getElementById('timer');
+const pauseMenu         = document.getElementById('pause-menu');
+const pauseResumeBtn    = document.getElementById('pause-resume-btn');
+const pauseRestartBtn   = document.getElementById('pause-restart-btn');
+const pauseControlsBtn  = document.getElementById('pause-controls-btn');
+const pauseControlsList = document.getElementById('pause-controls-list');
+const pauseStartLevelEl = document.getElementById('pause-start-level');
 
 const THEME_KEY = 'tetris-theme';
+const START_LEVEL_KEY = 'tetris-start-level';
+const MAX_START_LEVEL = 15;
 let themeColors = { gridLine: '#22222e', blockHighlight: 'rgba(255,255,255,0.12)' };
 let floatingTexts = [];
 let audioCtx = null;
+let startLevel = 1;
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, nextSpecialAt, freezeUntil, justGotTetris, combo, b2bActive, lastActionWasRotation,
     energy, skillMenuOpen, holdPiece, holdUsed, slowActive, slowUntil, peekQueue, peekUntil, undoSnapshot,
@@ -139,6 +148,27 @@ function initTheme() {
 
 themeToggle.addEventListener('change', () => {
   applyTheme(themeToggle.checked ? 'light' : 'dark');
+});
+
+function setStartLevel(value) {
+  startLevel = value;
+  localStorage.setItem(START_LEVEL_KEY, String(value));
+}
+
+function initStartLevel() {
+  for (let lvl = 1; lvl <= MAX_START_LEVEL; lvl++) {
+    const option = document.createElement('option');
+    option.value = lvl;
+    option.textContent = lvl;
+    pauseStartLevelEl.appendChild(option);
+  }
+  const stored = parseInt(localStorage.getItem(START_LEVEL_KEY), 10);
+  startLevel = (stored >= 1 && stored <= MAX_START_LEVEL) ? stored : 1;
+  pauseStartLevelEl.value = startLevel;
+}
+
+pauseStartLevelEl.addEventListener('change', () => {
+  setStartLevel(parseInt(pauseStartLevelEl.value, 10));
 });
 
 function createBoard() {
@@ -1027,14 +1057,12 @@ function togglePause() {
   if (paused) {
     pausedAt = performance.now();
     cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayScore.innerHTML = '';
-    overlay.classList.remove('hidden');
+    pauseMenu.classList.remove('hidden');
   } else {
     if (gameMode === 'sprint' || gameMode === 'ultra') {
       modeStartTime += performance.now() - pausedAt;
     }
-    overlay.classList.add('hidden');
+    pauseMenu.classList.add('hidden');
     lastTime = performance.now();
     animId = requestAnimationFrame(loop);
   }
@@ -1111,10 +1139,10 @@ function init() {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = 1;
+  level = startLevel;
   paused = false;
   gameOver = false;
-  dropInterval = 1000;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   dropAccum = 0;
   nextSpecialAt = 10;
   freezeUntil = 0;
@@ -1156,7 +1184,8 @@ function init() {
 
 document.addEventListener('keydown', e => {
   getAudioCtx(); // primer gesto del usuario: desbloquea el AudioContext
-  if (e.code === 'KeyP') { togglePause(); return; }
+  if (e.code === 'Escape' && skillMenuOpen) { skillMenuOpen = false; return; }
+  if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
   if (paused || gameOver) return;
 
   if (e.code === 'KeyE') {
@@ -1164,7 +1193,6 @@ document.addEventListener('keydown', e => {
     if (energy >= MAX_ENERGY && !pendingClear) { skillMenuOpen = true; return; }
     return;
   }
-  if (e.code === 'Escape' && skillMenuOpen) { skillMenuOpen = false; return; }
   if (skillMenuOpen) {
     const digit = { Digit1: 1, Digit2: 2, Digit3: 3, Digit4: 4, Digit5: 5 }[e.code];
     if (digit) activateSkill(digit);
@@ -1236,5 +1264,17 @@ document.getElementById('mode-change-btn').addEventListener('click', () => {
   modeSelectOverlay.classList.remove('hidden');
 });
 
+pauseResumeBtn.addEventListener('click', () => togglePause());
+
+pauseRestartBtn.addEventListener('click', () => {
+  pauseMenu.classList.add('hidden');
+  init();
+});
+
+pauseControlsBtn.addEventListener('click', () => {
+  pauseControlsList.classList.toggle('hidden');
+});
+
 initTheme();
+initStartLevel();
 ['classic', 'sprint', 'ultra'].forEach(updateModeSelectRecord);
