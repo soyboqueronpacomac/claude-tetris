@@ -75,8 +75,13 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
   activas que el jugador elige con `1`–`5`.
 - **Reserva de pieza (hold)**: guarda la pieza actual para usarla más tarde; se
   recarga en cada asentamiento.
-- **Niveles** que aumentan cada 10 líneas y aceleran la caída.
-- **Pausa** y **Game Over** con opción de reinicio.
+- **Niveles** que aumentan cada 10 líneas (a partir de un nivel inicial
+  configurable) y aceleran la caída.
+- **Menú de pausa** (`P` o `Esc`): overlay con Reanudar, Reiniciar (sin recargar
+  la página), un listado de controles plegable y un selector de nivel inicial
+  (1-15, persistido en `localStorage`) para la próxima partida. Mientras está
+  abierto, los inputs del juego quedan bloqueados.
+- **Game Over** con opción de reinicio.
 
 ---
 
@@ -119,7 +124,7 @@ Después abre `http://localhost:8000` en el navegador.
 | `↑` o `X` | Rotar la pieza en sentido horario |
 | `↓`       | Soft drop (bajar más rápido)      |
 | `Espacio` | Hard drop (caída instantánea)     |
-| `P`       | Pausar / reanudar                 |
+| `P` / `Esc` | Pausar / reanudar (abre el menú de pausa) |
 | `E`       | Abrir/cerrar menú de habilidades (requiere barra llena) |
 | `1`–`5`   | Elegir habilidad (con el menú abierto)  |
 | `Esc`     | Cerrar menú de habilidades sin gastar energía |
@@ -154,7 +159,8 @@ Define la estructura visual:
 
 - Un `<canvas id="board">` de **300 × 600** píxeles donde se renderiza el tablero.
 - Un panel lateral con `SCORE`, `LINES`, `LEVEL`, vista de la siguiente pieza (`NEXT`), ranura de reserva (`HOLD`), barra de energía (`ENERGY`) y la lista de controles.
-- Un overlay para los estados **PAUSA** y **GAME OVER**.
+- Un overlay para el estado **GAME OVER** y otro independiente (`#pause-menu`)
+  para el menú de **PAUSA**, con sus botones y el selector de nivel inicial.
 
 ### 2. `style.css`
 

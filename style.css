@@ -258,8 +258,8 @@ body {
   text-align: right;
 }
 
-/* Botón secundario "Cambiar modo" en overlay de fin de partida */
-#mode-change-btn {
+/* Botón secundario "Cambiar modo" / "Ver controles" */
+.mode-change-link {
   background: transparent;
   color: var(--muted);
   border: 1px solid var(--border);
@@ -270,7 +270,7 @@ body {
   transition: color 0.15s, border-color 0.15s;
 }
 
-#mode-change-btn:hover {
+.mode-change-link:hover {
   color: var(--accent);
   border-color: var(--accent);
 }
@@ -325,7 +325,8 @@ kbd {
   align-items: center;
 }
 
-#overlay-title {
+#overlay-title,
+#pause-title {
   font-size: 28px;
   font-weight: 800;
   letter-spacing: 4px;
@@ -338,7 +339,7 @@ kbd {
   color: var(--accent);
 }
 
-#restart-btn {
+.btn-primary {
   margin-top: 8px;
   background: var(--accent);
   color: var(--accent-contrast);
@@ -352,8 +353,37 @@ kbd {
   transition: background 0.15s;
 }
 
-#restart-btn:hover {
+.btn-primary:hover {
   background: var(--accent-hover);
+}
+
+/* ---- Menú de pausa ---- */
+.pause-controls {
+  width: 100%;
+}
+
+.pause-controls.hidden {
+  display: none;
+}
+
+.start-level-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.start-level-field select {
+  background: var(--panel-bg);
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 /* ---- Theme toggle ---- */
