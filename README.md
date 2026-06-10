@@ -52,10 +52,12 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
   puntuación por jugadas hábiles, con texto flotante y sonido sintetizado al activarse.
 - **Modos de juego**: pantalla de selección al inicio con 4 modos (Classic, Sprint,
   Ultra, Zen), cada uno con condiciones y HUD propios.
-- **Tabla de puntuaciones**: top 5 por modo guardado en `localStorage`. Classic y
-  Ultra rankean por score; Sprint por tiempo. El mejor récord de cada modo se muestra
-  bajo su botón en la pantalla de selección. La nueva marca se resalta con ★ en el
-  overlay de fin de partida.
+- **Tabla de récords locales**: top 5 por modo guardado en `localStorage`, con
+  nombre de jugador, líneas y mejor combo de cada partida. Classic y Ultra
+  rankean por score; Sprint por tiempo. La tabla completa se ve tanto en la
+  pantalla de selección de modo como en el overlay de fin de partida, donde la
+  nueva marca se resalta con ★. Incluye campo para editar el nombre del
+  jugador y un botón para resetear todos los récords.
 - **Diseño sonoro completo**: sonido al asentar pieza (lock), al limpiar líneas
   (1–4 tonos ascendentes según la cantidad), al hacer hard drop y al subir de nivel.
   Se suma a los sonidos de bonus ya existentes (combo, T-Spin, B2B, Perfect Clear).
@@ -301,6 +303,46 @@ El panel lateral muestra la ranura **HOLD** (canvas) y la **barra de energía**
 (barra CSS con transición suave y efecto glow dorado al llenarse). El menú de
 habilidades dibuja en el mismo canvas del tablero con `ctx.roundRect`, marcando
 en gris las habilidades no disponibles en ese momento.
+
+### Tabla de récords locales
+
+Cada vez que termina una partida (`endGame`, `endSprintGame`, `endUltraGame`),
+`saveScore(mode, score, time?)` guarda un registro en `localStorage` bajo la
+clave `tetris-scores-{mode}`. Cada entrada incluye:
+
+- `score`, `date` y, en Sprint, `time`.
+- `name`: nombre del jugador, tomado de `tetris-player-name` (default
+  `"Jugador"`).
+- `lines`: líneas totales conseguidas en esa partida.
+- `stats`: piezas colocadas, distribución de limpiezas, T-Spins y
+  `bestCombo` (el combo más alto alcanzado, registrado en `handleLineClear`
+  cada vez que `combo` supera el máximo de la partida).
+
+`renderScores(mode, newRank)` genera la tabla `<div class="score-table">`
+con el top `MAX_RECORDS = 5`, mostrando nombre, puntaje (o tiempo en Sprint),
+líneas y mejor combo de cada registro, además de un resumen con las **líneas
+máximas** y el **mejor combo histórico** del modo. La fila ganadora de la
+partida actual (si entró al top 5) se resalta con la clase `score-new` y el
+símbolo ★.
+
+La tabla se muestra en dos lugares:
+
+- **Pantalla de inicio** (`#mode-select-records`): `updateModeSelectTables()`
+  renderiza las tablas de Classic, Sprint y Ultra completas, además de
+  actualizar el "Mejor: X" bajo cada botón de modo.
+- **Overlay de fin de partida** (`#overlay-score`): junto con las
+  estadísticas de la partida (`renderStats`).
+
+Un campo `<input id="player-name">` en el overlay de fin de partida permite
+cambiar el nombre del jugador en cualquier momento; el valor se persiste en
+`tetris-player-name`. Si la partida recién terminada entró al top 5, cambiar
+el nombre actualiza **in-place** ese registro en `localStorage`
+(`updateRecordName`) y refresca tanto la tabla del overlay como la de la
+pantalla de inicio.
+
+El botón **"Resetear récords"** (en la pantalla de inicio) borra, previa
+confirmación (`confirm()`), las claves `tetris-scores-classic/sprint/ultra`
+de `localStorage` y vuelve a renderizar todas las tablas y los "Mejor: X".
 
 ---
 

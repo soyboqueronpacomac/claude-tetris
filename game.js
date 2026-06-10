@@ -105,6 +105,8 @@ const pauseRestartBtn   = document.getElementById('pause-restart-btn');
 const pauseControlsBtn  = document.getElementById('pause-controls-btn');
 const pauseControls     = document.getElementById('pause-controls');
 const pauseStartLevelEl = document.getElementById('pause-start-level');
+const playerNameInput   = document.getElementById('player-name');
+const resetRecordsBtn   = document.getElementById('reset-records-btn');
 
 const THEME_KEY = 'tetris-theme';
 const START_LEVEL_KEY = 'tetris-start-level';
@@ -119,7 +121,8 @@ let board, current, next, score, lines, level, paused, gameOver, lastTime, dropA
     gameMode, modeStartTime, pausedAt,
     particles, pendingClear, shakeUntil, shakeIntensity, shakeDuration,
     keyHeld, dasAt, lastArr,
-    piecesPlaced, clearsByType, tspinsCount, actionsCount;
+    piecesPlaced, clearsByType, tspinsCount, actionsCount, bestCombo,
+    lastSavedRecord;
 
 function readThemeColors() {
   const styles = getComputedStyle(document.documentElement);
@@ -372,6 +375,7 @@ function handleLineClear(cleared, tspin) {
   if (isTetris) triggerShake(300, 3);
 
   combo++;
+  if (combo > bestCombo) bestCombo = combo;
   if (combo > 1) {
     gained = Math.round(gained * combo);
     showFloatingText(`COMBO x${combo}`, FX_COLORS.combo);
@@ -927,11 +931,23 @@ function loadScores(mode) {
   catch { return []; }
 }
 
+const PLAYER_NAME_KEY = 'tetris-player-name';
+const DEFAULT_PLAYER_NAME = 'Jugador';
+
+function getPlayerName() {
+  return localStorage.getItem(PLAYER_NAME_KEY) || DEFAULT_PLAYER_NAME;
+}
+
 function saveScore(mode, scoreVal, time) {
   const records = loadScores(mode);
-  const entry = { score: scoreVal, date: new Date().toLocaleDateString('es-AR') };
+  const entry = {
+    score: scoreVal,
+    name: getPlayerName(),
+    lines: lines,
+    date: new Date().toLocaleDateString('es-AR'),
+  };
   if (mode === 'sprint') entry.time = time;
-  entry.stats = { pieces: piecesPlaced, clears: [...clearsByType], tspins: tspinsCount };
+  entry.stats = { pieces: piecesPlaced, clears: [...clearsByType], tspins: tspinsCount, bestCombo };
   records.push(entry);
   records.sort(mode === 'sprint'
     ? (a, b) => a.time - b.time
@@ -943,6 +959,17 @@ function saveScore(mode, scoreVal, time) {
   return rank < MAX_RECORDS ? rank : -1;
 }
 
+// Actualiza in-place el nombre del registro recién guardado (rank dado por
+// saveScore) y persiste. Usado cuando el jugador cambia el nombre después
+// de terminar la partida pero antes de reiniciar.
+function updateRecordName(mode, rank, name) {
+  if (rank < 0) return;
+  const records = loadScores(mode);
+  if (!records[rank]) return;
+  records[rank].name = name || DEFAULT_PLAYER_NAME;
+  localStorage.setItem(SCORES_KEY(mode), JSON.stringify(records));
+}
+
 function renderScores(mode, newRank) {
   const records = loadScores(mode);
   if (!records.length) return '';
@@ -950,10 +977,15 @@ function renderScores(mode, newRank) {
   const rows = records.map((r, i) => {
     const isNew  = i === newRank;
     const pts    = r.score.toLocaleString();
-    const detail = mode === 'sprint' ? `${formatTime(r.time)} — ${pts} pts` : pts;
-    return `<li class="${isNew ? 'score-new' : ''}">${i + 1}. ${detail}${isNew ? ' ★' : ''}</li>`;
+    const name   = r.name || DEFAULT_PLAYER_NAME;
+    const detail = mode === 'sprint' ? `${formatTime(r.time)} — ${pts} pts` : `${pts} pts`;
+    const extra  = `(${r.lines || 0} líneas, combo x${r.stats?.bestCombo || 0})`;
+    return `<li class="${isNew ? 'score-new' : ''}">${i + 1}. ${name} — ${detail} ${extra}${isNew ? ' ★' : ''}</li>`;
   });
-  return `<div class="score-table"><p class="score-table-title">${title}</p><ul>${rows.join('')}</ul></div>`;
+  const maxLines = Math.max(0, ...records.map(r => r.lines || 0));
+  const maxCombo = Math.max(0, ...records.map(r => r.stats?.bestCombo || 0));
+  const summary = `<p class="score-table-summary">Máx. líneas: ${maxLines} &nbsp;|&nbsp; Mejor combo: x${maxCombo}</p>`;
+  return `<div class="score-table"><p class="score-table-title">${title}</p>${summary}<ul>${rows.join('')}</ul></div>`;
 }
 
 function renderStats(elapsedMs) {
@@ -977,11 +1009,33 @@ function renderStats(elapsedMs) {
 function updateModeSelectRecord(mode) {
   const records = loadScores(mode);
   const el = document.querySelector(`.mode-btn[data-mode="${mode}"] .mode-desc`);
-  if (!el || !records.length) return;
-  const best = records[0];
-  el.textContent = mode === 'sprint'
-    ? `Mejor: ${formatTime(best.time)}`
-    : `Mejor: ${best.score.toLocaleString()}`;
+  if (el && records.length) {
+    const best = records[0];
+    el.textContent = mode === 'sprint'
+      ? `Mejor: ${formatTime(best.time)}`
+      : `Mejor: ${best.score.toLocaleString()}`;
+  }
+  updateModeSelectTables();
+}
+
+// Re-renderiza las tablas de récords completas (classic/sprint/ultra) en la
+// pantalla de selección de modo.
+function updateModeSelectTables() {
+  const container = document.getElementById('mode-select-records');
+  if (!container) return;
+  container.innerHTML = ['classic', 'sprint', 'ultra']
+    .map(mode => renderScores(mode))
+    .join('');
+}
+
+function resetRecords() {
+  if (!confirm('¿Borrar todos los récords guardados (Classic, Sprint y Ultra)?')) return;
+  ['classic', 'sprint', 'ultra'].forEach(mode => localStorage.removeItem(SCORES_KEY(mode)));
+  ['classic', 'sprint', 'ultra'].forEach(mode => {
+    const el = document.querySelector(`.mode-btn[data-mode="${mode}"] .mode-desc`);
+    if (el) el.textContent = mode === 'sprint' ? '40 líneas' : (mode === 'classic' ? 'Sin límites' : '2 minutos');
+  });
+  updateModeSelectTables();
 }
 
 function startGame(mode) {
@@ -1006,15 +1060,25 @@ function updateTimer() {
   }
 }
 
+// Reconstruye el contenido del overlay de fin de partida (resumen + tabla
+// de récords + estadísticas). Se reutiliza al renombrar el registro
+// recién guardado para refrescar la tabla in-place.
+function renderOverlayScore(mode, summary, rank, elapsed) {
+  const table = (mode === 'classic' || mode === 'sprint' || mode === 'ultra')
+    ? renderScores(mode, rank)
+    : '';
+  return summary + table + renderStats(elapsed);
+}
+
 function endSprintGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
   const elapsed = performance.now() - modeStartTime;
   const rank = saveScore('sprint', score, elapsed);
+  const summary = `Tiempo: ${formatTime(elapsed)} &nbsp;|&nbsp; Puntuación: ${score.toLocaleString()}`;
+  lastSavedRecord = { mode: 'sprint', rank, summary, elapsed };
   overlayTitle.textContent = 'SPRINT';
-  overlayScore.innerHTML = `Tiempo: ${formatTime(elapsed)} &nbsp;|&nbsp; Puntuación: ${score.toLocaleString()}`
-    + renderScores('sprint', rank)
-    + renderStats(elapsed);
+  overlayScore.innerHTML = renderOverlayScore('sprint', summary, rank, elapsed);
   overlay.classList.remove('hidden');
   updateModeSelectRecord('sprint');
 }
@@ -1025,10 +1089,10 @@ function endUltraGame() {
   timerEl.textContent = '0:00.0';
   const rank = saveScore('ultra', score);
   const elapsed = Math.min(ULTRA_DURATION, performance.now() - modeStartTime);
+  const summary = `Puntuación: ${score.toLocaleString()}`;
+  lastSavedRecord = { mode: 'ultra', rank, summary, elapsed };
   overlayTitle.textContent = 'TIEMPO AGOTADO';
-  overlayScore.innerHTML = `Puntuación: ${score.toLocaleString()}`
-    + renderScores('ultra', rank)
-    + renderStats(elapsed);
+  overlayScore.innerHTML = renderOverlayScore('ultra', summary, rank, elapsed);
   overlay.classList.remove('hidden');
   updateModeSelectRecord('ultra');
 }
@@ -1043,10 +1107,10 @@ function endGame() {
   cancelAnimationFrame(animId);
   const rank = (gameMode === 'classic') ? saveScore('classic', score) : -1;
   const elapsed = performance.now() - modeStartTime;
+  const summary = `Puntuación: ${score.toLocaleString()}`;
+  lastSavedRecord = (gameMode === 'classic') ? { mode: 'classic', rank, summary, elapsed } : null;
   overlayTitle.textContent = 'GAME OVER';
-  overlayScore.innerHTML = `Puntuación: ${score.toLocaleString()}`
-    + (gameMode === 'classic' ? renderScores('classic', rank) : '')
-    + renderStats(elapsed);
+  overlayScore.innerHTML = renderOverlayScore(gameMode === 'classic' ? 'classic' : '', summary, rank, elapsed);
   overlay.classList.remove('hidden');
   if (gameMode === 'classic') updateModeSelectRecord('classic');
 }
@@ -1149,6 +1213,8 @@ function init() {
   freezeUntil = 0;
   justGotTetris = false;
   combo = 0;
+  bestCombo = 0;
+  lastSavedRecord = null;
   b2bActive = false;
   lastActionWasRotation = false;
   floatingTexts = [];
@@ -1283,6 +1349,22 @@ pauseControlsBtn.addEventListener('click', () => {
   pauseControls.classList.toggle('hidden');
 });
 
+// Si la partida entró al top 5, permite renombrar el registro recién
+// guardado en caliente (sin reiniciar) y refleja el cambio en las tablas.
+playerNameInput.addEventListener('input', () => {
+  const name = playerNameInput.value.trim() || DEFAULT_PLAYER_NAME;
+  localStorage.setItem(PLAYER_NAME_KEY, name);
+  if (lastSavedRecord && lastSavedRecord.rank >= 0) {
+    updateRecordName(lastSavedRecord.mode, lastSavedRecord.rank, name);
+    const { mode, summary, rank, elapsed } = lastSavedRecord;
+    overlayScore.innerHTML = renderOverlayScore(mode, summary, rank, elapsed);
+    updateModeSelectTables();
+  }
+});
+
+resetRecordsBtn.addEventListener('click', resetRecords);
+
 initTheme();
 initStartLevel();
+playerNameInput.value = getPlayerName();
 ['classic', 'sprint', 'ultra'].forEach(updateModeSelectRecord);
