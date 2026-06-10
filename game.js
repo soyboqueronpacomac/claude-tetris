@@ -1347,6 +1347,7 @@ function init() {
 
 document.addEventListener('keydown', e => {
   getAudioCtx(); // primer gesto del usuario: desbloquea el AudioContext
+  if (!modeSelectOverlay.classList.contains('hidden')) return;
   if (e.code === 'KeyP') { togglePause(); return; }
   if (e.code === 'Escape' && !skillMenuOpen) { togglePause(); return; }
   if (paused || gameOver) return;
