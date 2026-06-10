@@ -103,6 +103,34 @@
         <button id="mode-change-btn" class="mode-change-link">Cambiar modo</button>
       </div>
     </div>
+
+    <div id="pause-menu" class="overlay hidden">
+      <div class="overlay-box pause-menu-box">
+        <p class="pause-title">PAUSA</p>
+
+        <button id="pause-resume-btn">Reanudar</button>
+        <button id="pause-restart-btn">Reiniciar</button>
+
+        <div class="pause-level-select">
+          <label for="pause-start-level">Nivel inicial</label>
+          <select id="pause-start-level"></select>
+        </div>
+
+        <button id="pause-controls-btn" class="mode-change-link">Ver controles</button>
+
+        <div id="pause-controls" class="panel-section controls hidden">
+          <ul>
+            <li><kbd>←</kbd><kbd>→</kbd> mover</li>
+            <li><kbd>↑</kbd> rotar</li>
+            <li><kbd>↓</kbd> bajar</li>
+            <li><kbd>Space</kbd> caída</li>
+            <li><kbd>P</kbd> / <kbd>Esc</kbd> pausa</li>
+            <li><kbd>E</kbd> habilidades</li>
+            <li><kbd>1</kbd>–<kbd>5</kbd> elegir</li>
+          </ul>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="game.js"></script>

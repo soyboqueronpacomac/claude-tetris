@@ -99,11 +99,20 @@ const energyFill        = document.getElementById('energy-bar-fill');
 const modeSelectOverlay = document.getElementById('mode-select');
 const timerSection      = document.getElementById('timer-section');
 const timerEl           = document.getElementById('timer');
+const pauseMenu         = document.getElementById('pause-menu');
+const pauseResumeBtn    = document.getElementById('pause-resume-btn');
+const pauseRestartBtn   = document.getElementById('pause-restart-btn');
+const pauseControlsBtn  = document.getElementById('pause-controls-btn');
+const pauseControls     = document.getElementById('pause-controls');
+const pauseStartLevelEl = document.getElementById('pause-start-level');
 
 const THEME_KEY = 'tetris-theme';
+const START_LEVEL_KEY = 'tetris-start-level';
+const MAX_START_LEVEL = 15;
 let themeColors = { gridLine: '#22222e', blockHighlight: 'rgba(255,255,255,0.12)' };
 let floatingTexts = [];
 let audioCtx = null;
+let startLevel = 1;
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, nextSpecialAt, freezeUntil, justGotTetris, combo, b2bActive, lastActionWasRotation,
     energy, skillMenuOpen, holdPiece, holdUsed, slowActive, slowUntil, peekQueue, peekUntil, undoSnapshot,
@@ -139,6 +148,27 @@ function initTheme() {
 
 themeToggle.addEventListener('change', () => {
   applyTheme(themeToggle.checked ? 'light' : 'dark');
+});
+
+function setStartLevel(value) {
+  startLevel = Math.min(MAX_START_LEVEL, Math.max(1, value));
+  localStorage.setItem(START_LEVEL_KEY, String(startLevel));
+  pauseStartLevelEl.value = String(startLevel);
+}
+
+function initStartLevel() {
+  for (let i = 1; i <= MAX_START_LEVEL; i++) {
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = String(i);
+    pauseStartLevelEl.appendChild(opt);
+  }
+  const stored = parseInt(localStorage.getItem(START_LEVEL_KEY), 10);
+  setStartLevel(Number.isInteger(stored) ? stored : 1);
+}
+
+pauseStartLevelEl.addEventListener('change', () => {
+  setStartLevel(parseInt(pauseStartLevelEl.value, 10));
 });
 
 function createBoard() {
@@ -1027,14 +1057,13 @@ function togglePause() {
   if (paused) {
     pausedAt = performance.now();
     cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayScore.innerHTML = '';
-    overlay.classList.remove('hidden');
+    pauseMenu.classList.remove('hidden');
   } else {
     if (gameMode === 'sprint' || gameMode === 'ultra') {
       modeStartTime += performance.now() - pausedAt;
     }
-    overlay.classList.add('hidden');
+    pauseMenu.classList.add('hidden');
+    pauseControls.classList.add('hidden');
     lastTime = performance.now();
     animId = requestAnimationFrame(loop);
   }
@@ -1111,10 +1140,10 @@ function init() {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = 1;
+  level = startLevel;
   paused = false;
   gameOver = false;
-  dropInterval = 1000;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   dropAccum = 0;
   nextSpecialAt = 10;
   freezeUntil = 0;
@@ -1150,6 +1179,8 @@ function init() {
   updateHUD();
   drawHoldPiece();
   overlay.classList.add('hidden');
+  pauseMenu.classList.add('hidden');
+  pauseControls.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
@@ -1157,6 +1188,7 @@ function init() {
 document.addEventListener('keydown', e => {
   getAudioCtx(); // primer gesto del usuario: desbloquea el AudioContext
   if (e.code === 'KeyP') { togglePause(); return; }
+  if (e.code === 'Escape' && !skillMenuOpen) { togglePause(); return; }
   if (paused || gameOver) return;
 
   if (e.code === 'KeyE') {
@@ -1236,5 +1268,21 @@ document.getElementById('mode-change-btn').addEventListener('click', () => {
   modeSelectOverlay.classList.remove('hidden');
 });
 
+pauseResumeBtn.addEventListener('click', () => {
+  if (paused) togglePause();
+});
+
+pauseRestartBtn.addEventListener('click', () => {
+  paused = false;
+  pauseMenu.classList.add('hidden');
+  pauseControls.classList.add('hidden');
+  init();
+});
+
+pauseControlsBtn.addEventListener('click', () => {
+  pauseControls.classList.toggle('hidden');
+});
+
 initTheme();
+initStartLevel();
 ['classic', 'sprint', 'ultra'].forEach(updateModeSelectRecord);

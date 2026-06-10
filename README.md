@@ -119,10 +119,10 @@ Después abre `http://localhost:8000` en el navegador.
 | `↑` o `X` | Rotar la pieza en sentido horario |
 | `↓`       | Soft drop (bajar más rápido)      |
 | `Espacio` | Hard drop (caída instantánea)     |
-| `P`       | Pausar / reanudar                 |
+| `P` / `Esc` | Pausar / reanudar (abre el menú de pausa) |
 | `E`       | Abrir/cerrar menú de habilidades (requiere barra llena) |
 | `1`–`5`   | Elegir habilidad (con el menú abierto)  |
-| `Esc`     | Cerrar menú de habilidades sin gastar energía |
+| `Esc`     | Cerrar menú de habilidades sin gastar energía (con el menú de habilidades abierto) |
 
 ---
 
@@ -301,6 +301,25 @@ El panel lateral muestra la ranura **HOLD** (canvas) y la **barra de energía**
 (barra CSS con transición suave y efecto glow dorado al llenarse). El menú de
 habilidades dibuja en el mismo canvas del tablero con `ctx.roundRect`, marcando
 en gris las habilidades no disponibles en ese momento.
+
+---
+
+### Menú de pausa
+
+`P` o `Esc` abren un menú de pausa que **bloquea todos los inputs del juego**
+mientras está abierto (movimiento, rotación, hard drop y menú de habilidades).
+Desde ahí se puede:
+
+- **Reanudar** — vuelve al juego justo donde quedó.
+- **Reiniciar** — arranca una partida nueva sin recargar la página, conservando
+  el modo de juego actual (Classic, Sprint, Ultra o Zen).
+- **Ver controles** — muestra/oculta dentro del propio menú la lista completa
+  de teclas.
+- **Nivel inicial** — un selector (1–15) define con qué nivel arranca la
+  *próxima* partida. El valor elegido se persiste en `localStorage` y también
+  ajusta la velocidad de caída inicial (`dropInterval`) según ese nivel.
+
+`P`/`Esc` siguen funcionando para cerrar el menú aunque el juego esté pausado.
 
 ---
 
