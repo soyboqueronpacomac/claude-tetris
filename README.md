@@ -365,6 +365,28 @@ Desde ahí se puede:
 
 ---
 
+### Skins visuales
+
+Un selector (`#skin-select`, junto al toggle de tema claro/oscuro) cambia la
+apariencia completa del juego en caliente, sin recargar la página. La
+preferencia se guarda en `localStorage` (`tetris-skin`) y se restaura al
+volver a abrir el juego, igual que el tema. Hay 4 skins:
+
+| Skin | Aspecto |
+| ---- | ------- |
+| **Retro** (default) | Bloques cuadrados de color plano con un highlight superior — el estilo clásico del juego. |
+| **Neon** | Fondo del tablero negro puro y bloques con `ctx.shadowBlur` para un efecto de brillo (glow) alrededor de cada celda. |
+| **Pastel** | Colores suavizados (mezclados con blanco vía `lighten()`) y bordes redondeados con `ctx.roundRect`. |
+| **Pixel art** | Cada bloque lleva encima un patrón de cuadrícula 2×2 con ligeras variaciones de brillo, simulando una textura pixel-art. |
+
+Toda la lógica vive en `drawBlock()`, que ramifica por `currentSkin` — el
+mismo punto de dibujo que usan el tablero, la pieza fantasma, la pieza actual,
+`HOLD` y `NEXT`, así que el cambio de skin se aplica de forma consistente en
+todo el juego. El aspa de las celdas "comodín" (efecto Tinte) y los íconos de
+piezas especiales se siguen dibujando igual encima, en los 4 skins.
+
+---
+
 ## Tecnologías
 
 - **HTML5** — marcado y dos elementos `<canvas>` (tablero y vista previa).

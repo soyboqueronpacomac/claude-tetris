@@ -25,6 +25,17 @@ const COLORS = [
   '#ffd700', // Single - dorado (recompensa)
 ];
 
+// Mezcla un color hex con blanco para obtener una variante pastel.
+// amount en [0, 1]: 0 = color original, 1 = blanco puro.
+function lighten(hexColor, amount) {
+  const hex = hexColor.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  const mix = c => Math.round(c + (255 - c) * amount);
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+}
+
 const PIECES = [
   null,
   [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], // I
@@ -93,6 +104,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
+const skinSelect = document.getElementById('skin-select');
 const holdCanvas        = document.getElementById('hold-canvas');
 const holdCtx           = holdCanvas.getContext('2d');
 const energyFill        = document.getElementById('energy-bar-fill');
@@ -111,6 +123,8 @@ const resetRecordsBtn   = document.getElementById('reset-records-btn');
 const THEME_KEY = 'tetris-theme';
 const START_LEVEL_KEY = 'tetris-start-level';
 const MAX_START_LEVEL = 15;
+const SKIN_KEY = 'tetris-skin';
+let currentSkin = 'retro';
 let themeColors = { gridLine: '#22222e', blockHighlight: 'rgba(255,255,255,0.12)' };
 let floatingTexts = [];
 let audioCtx = null;
@@ -172,6 +186,26 @@ function initStartLevel() {
 
 pauseStartLevelEl.addEventListener('change', () => {
   setStartLevel(parseInt(pauseStartLevelEl.value, 10));
+});
+
+function applySkin(skin) {
+  currentSkin = skin;
+  skinSelect.value = skin;
+  localStorage.setItem(SKIN_KEY, skin);
+  if (current) {
+    draw();
+    drawNext();
+    drawHoldPiece();
+  }
+}
+
+function initSkin() {
+  const stored = localStorage.getItem(SKIN_KEY);
+  applySkin(['retro', 'neon', 'pastel', 'pixel'].includes(stored) ? stored : 'retro');
+}
+
+skinSelect.addEventListener('change', () => {
+  applySkin(skinSelect.value);
 });
 
 function createBoard() {
@@ -485,13 +519,68 @@ function updateHUD() {
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[Math.abs(colorIndex)];
+  const baseColor = COLORS[Math.abs(colorIndex)];
+  const px = x * size + 1;
+  const py = y * size + 1;
+  const w = size - 2;
   context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = themeColors.blockHighlight;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+
+  switch (currentSkin) {
+    case 'neon': {
+      context.shadowBlur = 12;
+      context.shadowColor = baseColor;
+      context.fillStyle = baseColor;
+      context.fillRect(px, py, w, w);
+      context.shadowBlur = 0;
+      // borde sutil para definir el bloque
+      context.strokeStyle = 'rgba(255,255,255,0.25)';
+      context.lineWidth = 1;
+      context.strokeRect(px + 0.5, py + 0.5, w - 1, w - 1);
+      break;
+    }
+    case 'pastel': {
+      const pastelColor = lighten(baseColor, 0.35);
+      const radius = Math.max(2, size * 0.18);
+      context.fillStyle = pastelColor;
+      context.beginPath();
+      context.roundRect(px, py, w, w, radius);
+      context.fill();
+      // highlight superior, también redondeado
+      context.fillStyle = themeColors.blockHighlight;
+      context.beginPath();
+      context.roundRect(px, py, w, Math.min(4, w), [radius, radius, 0, 0]);
+      context.fill();
+      break;
+    }
+    case 'pixel': {
+      context.fillStyle = baseColor;
+      context.fillRect(px, py, w, w);
+      // patrón 2x2 con variación leve de brillo, simulando textura pixel-art
+      const half = w / 2;
+      const shades = ['rgba(255,255,255,0.10)', 'rgba(0,0,0,0.08)'];
+      context.fillStyle = shades[0];
+      context.fillRect(px, py, half, half);
+      context.fillRect(px + half, py + half, w - half, w - half);
+      context.fillStyle = shades[1];
+      context.fillRect(px + half, py, w - half, half);
+      context.fillRect(px, py + half, half, w - half);
+      // borde marcado, típico del pixel-art
+      context.strokeStyle = 'rgba(0,0,0,0.35)';
+      context.lineWidth = 1;
+      context.strokeRect(px + 0.5, py + 0.5, w - 1, w - 1);
+      break;
+    }
+    case 'retro':
+    default: {
+      context.fillStyle = baseColor;
+      context.fillRect(px, py, w, w);
+      // highlight
+      context.fillStyle = themeColors.blockHighlight;
+      context.fillRect(px, py, w, 4);
+      break;
+    }
+  }
+
   if (colorIndex < 0) {
     // comodín: aspa blanca semitransparente
     context.strokeStyle = 'rgba(255,255,255,0.6)';
@@ -854,6 +943,11 @@ function draw() {
       (Math.random() - 0.5) * shakeIntensity * decay * 2,
       (Math.random() - 0.5) * shakeIntensity * decay * 2
     );
+  }
+
+  if (currentSkin === 'neon') {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
   drawGrid();
@@ -1367,4 +1461,5 @@ resetRecordsBtn.addEventListener('click', resetRecords);
 initTheme();
 initStartLevel();
 playerNameInput.value = getPlayerName();
+initSkin();
 ['classic', 'sprint', 'ultra'].forEach(updateModeSelectRecord);
