@@ -229,6 +229,132 @@ body {
   font-weight: 700;
 }
 
+.record-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.record-table th {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--label);
+  text-transform: uppercase;
+  text-align: right;
+  padding-bottom: 4px;
+}
+
+.record-table th:first-child,
+.record-table td:first-child { text-align: left; }
+
+.record-table td {
+  text-align: right;
+  padding: 2px 0;
+}
+
+.record-table td.record-name {
+  text-align: left;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.record-table tr.score-new {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.record-best {
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--label);
+}
+
+/* ---- Entrada de nombre para nuevo récord ---- */
+#name-entry {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+#name-entry.hidden { display: none; }
+
+#player-name-input {
+  flex: 1;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--accent);
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 13px;
+}
+
+#save-name-btn {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ---- Panel de récords en pantalla de inicio ---- */
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+#records-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#records-panel.hidden { display: none; }
+
+#records-tables {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.no-records {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#reset-records-btn {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 16px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+#reset-records-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* Tabla de estadísticas post-partida */
 .stats-grid {
   display: grid;
