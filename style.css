@@ -394,3 +394,19 @@ kbd {
 .theme-toggle input:checked + .track .thumb {
   transform: translateX(20px);
 }
+
+/* ---- Skin selector ---- */
+.skin-select {
+  background: var(--panel-bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.skin-select:focus {
+  outline: 1px solid var(--accent);
+}
