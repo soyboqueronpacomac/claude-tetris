@@ -92,6 +92,16 @@
             <span class="mode-desc">Sin Game Over</span>
           </button>
         </div>
+
+        <div class="records-panel">
+          <div class="records-tabs">
+            <button class="records-tab active" data-mode="classic">Classic</button>
+            <button class="records-tab" data-mode="sprint">Sprint</button>
+            <button class="records-tab" data-mode="ultra">Ultra</button>
+          </div>
+          <div id="records-table-container"></div>
+          <button id="reset-records-btn" class="mode-change-link">Resetear récords</button>
+        </div>
       </div>
     </div>
 
@@ -99,6 +109,10 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
+        <div id="name-entry" class="name-entry hidden">
+          <input id="player-name-input" type="text" maxlength="12" placeholder="Tu nombre" />
+          <button id="save-name-btn">Guardar</button>
+        </div>
         <button id="restart-btn" class="btn-primary">Reiniciar</button>
         <button id="mode-change-btn" class="mode-change-link">Cambiar modo</button>
       </div>

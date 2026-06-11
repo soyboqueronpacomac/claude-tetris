@@ -80,6 +80,7 @@ const ARR = 30;  // ms entre cada shift automático
 
 const MAX_RECORDS = 5;
 const SCORES_KEY  = mode => `tetris-scores-${mode}`;
+const PLAYER_NAME_KEY = 'tetris-player-name';
 
 const MIN_START_LEVEL = 1;
 const MAX_START_LEVEL = 15;
@@ -109,14 +110,22 @@ const pauseRestartBtn   = document.getElementById('pause-restart-btn');
 const toggleControlsBtn = document.getElementById('toggle-controls-btn');
 const pauseControls     = document.getElementById('pause-controls');
 const startLevelSelect  = document.getElementById('start-level-select');
+const nameEntry         = document.getElementById('name-entry');
+const playerNameInput   = document.getElementById('player-name-input');
+const saveNameBtn       = document.getElementById('save-name-btn');
+const recordsTabs       = document.querySelectorAll('.records-tab');
+const recordsContainer  = document.getElementById('records-table-container');
+const resetRecordsBtn   = document.getElementById('reset-records-btn');
 
 const THEME_KEY = 'tetris-theme';
 let themeColors = { gridLine: '#22222e', blockHighlight: 'rgba(255,255,255,0.12)' };
 let floatingTexts = [];
 let audioCtx = null;
 let startLevel = loadStartLevel();
+let pendingRecord = null;
+let recordsPanelMode = 'classic';
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, nextSpecialAt, freezeUntil, justGotTetris, combo, b2bActive, lastActionWasRotation,
+let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, nextSpecialAt, freezeUntil, justGotTetris, combo, maxCombo, b2bActive, lastActionWasRotation,
     energy, skillMenuOpen, holdPiece, holdUsed, slowActive, slowUntil, peekQueue, peekUntil, undoSnapshot,
     gameMode, modeStartTime, pausedAt,
     particles, pendingClear, shakeUntil, shakeIntensity, shakeDuration,
@@ -374,6 +383,7 @@ function handleLineClear(cleared, tspin) {
   if (isTetris) triggerShake(300, 3);
 
   combo++;
+  if (combo > maxCombo) maxCombo = combo;
   if (combo > 1) {
     gained = Math.round(gained * combo);
     showFloatingText(`COMBO x${combo}`, FX_COLORS.combo);
@@ -929,9 +939,16 @@ function loadScores(mode) {
   catch { return []; }
 }
 
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
 function saveScore(mode, scoreVal, time) {
   const records = loadScores(mode);
-  const entry = { score: scoreVal, date: new Date().toLocaleDateString('es-AR') };
+  const name = localStorage.getItem(PLAYER_NAME_KEY) || 'Jugador';
+  const entry = { name, score: scoreVal, lines, combo: maxCombo, date: new Date().toLocaleDateString('es-AR') };
   if (mode === 'sprint') entry.time = time;
   entry.stats = { pieces: piecesPlaced, clears: [...clearsByType], tspins: tspinsCount };
   records.push(entry);
@@ -949,13 +966,56 @@ function renderScores(mode, newRank) {
   const records = loadScores(mode);
   if (!records.length) return '';
   const title = mode === 'sprint' ? 'MEJORES TIEMPOS' : 'MEJORES PUNTUACIONES';
+  const mainHeader = mode === 'sprint' ? 'Tiempo' : 'Puntos';
   const rows = records.map((r, i) => {
-    const isNew  = i === newRank;
-    const pts    = r.score.toLocaleString();
-    const detail = mode === 'sprint' ? `${formatTime(r.time)} — ${pts} pts` : pts;
-    return `<li class="${isNew ? 'score-new' : ''}">${i + 1}. ${detail}${isNew ? ' ★' : ''}</li>`;
-  });
-  return `<div class="score-table"><p class="score-table-title">${title}</p><ul>${rows.join('')}</ul></div>`;
+    const isNew = i === newRank;
+    const main  = mode === 'sprint' ? formatTime(r.time) : r.score.toLocaleString();
+    return `<tr class="${isNew ? 'score-new' : ''}">`
+      + `<td>${i + 1}</td>`
+      + `<td>${escapeHtml(r.name || 'Jugador')}${isNew ? ' ★' : ''}</td>`
+      + `<td>${main}</td>`
+      + `<td>${r.lines ?? '–'}</td>`
+      + `<td>${r.combo ?? '–'}</td>`
+      + `</tr>`;
+  }).join('');
+  return `<div class="score-table"><p class="score-table-title">${title}</p>`
+    + `<table class="records-table"><thead><tr>`
+    + `<th>#</th><th>Jugador</th><th>${mainHeader}</th><th>Líneas</th><th>Combo</th>`
+    + `</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function showNameEntry(mode, rank) {
+  if (rank < 0) {
+    pendingRecord = null;
+    nameEntry.classList.add('hidden');
+    return;
+  }
+  pendingRecord = { mode, rank };
+  playerNameInput.value = localStorage.getItem(PLAYER_NAME_KEY) || 'Jugador';
+  nameEntry.classList.remove('hidden');
+}
+
+function saveRecordName() {
+  const name = (playerNameInput.value.trim() || 'Jugador').slice(0, 12);
+  localStorage.setItem(PLAYER_NAME_KEY, name);
+  if (pendingRecord) {
+    const { mode, rank } = pendingRecord;
+    const records = loadScores(mode);
+    if (records[rank]) {
+      records[rank].name = name;
+      localStorage.setItem(SCORES_KEY(mode), JSON.stringify(records));
+    }
+    const tableEl = overlayScore.querySelector('.score-table');
+    if (tableEl) tableEl.outerHTML = renderScores(mode, rank);
+    if (recordsPanelMode === mode) renderRecordsPanel();
+  }
+  pendingRecord = null;
+  nameEntry.classList.add('hidden');
+}
+
+function renderRecordsPanel() {
+  recordsContainer.innerHTML = renderScores(recordsPanelMode, -1)
+    || '<p class="score-table-title">Sin récords todavía</p>';
 }
 
 function renderStats(elapsedMs) {
@@ -1019,6 +1079,7 @@ function endSprintGame() {
     + renderStats(elapsed);
   overlay.classList.remove('hidden');
   updateModeSelectRecord('sprint');
+  showNameEntry('sprint', rank);
 }
 
 function endUltraGame() {
@@ -1033,6 +1094,7 @@ function endUltraGame() {
     + renderStats(elapsed);
   overlay.classList.remove('hidden');
   updateModeSelectRecord('ultra');
+  showNameEntry('ultra', rank);
 }
 
 function zenMercy() {
@@ -1051,6 +1113,7 @@ function endGame() {
     + renderStats(elapsed);
   overlay.classList.remove('hidden');
   if (gameMode === 'classic') updateModeSelectRecord('classic');
+  showNameEntry('classic', rank);
 }
 
 function togglePause() {
@@ -1153,6 +1216,7 @@ function init() {
   freezeUntil = 0;
   justGotTetris = false;
   combo = 0;
+  maxCombo = 0;
   b2bActive = false;
   lastActionWasRotation = false;
   floatingTexts = [];
@@ -1263,6 +1327,8 @@ document.querySelectorAll('.mode-btn').forEach(btn =>
 
 restartBtn.addEventListener('click', () => {
   overlay.classList.add('hidden');
+  nameEntry.classList.add('hidden');
+  pendingRecord = null;
   init();
 });
 
@@ -1270,6 +1336,8 @@ document.getElementById('mode-change-btn').addEventListener('click', () => {
   cancelAnimationFrame(animId);
   gameOver = false;
   overlay.classList.add('hidden');
+  nameEntry.classList.add('hidden');
+  pendingRecord = null;
   modeSelectOverlay.classList.remove('hidden');
 });
 
@@ -1286,6 +1354,26 @@ toggleControlsBtn.addEventListener('click', () => {
   toggleControlsBtn.textContent = hidden ? 'Ver controles' : 'Ocultar controles';
 });
 
+saveNameBtn.addEventListener('click', saveRecordName);
+playerNameInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveRecordName();
+});
+
+recordsTabs.forEach(tab => tab.addEventListener('click', () => {
+  recordsTabs.forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  recordsPanelMode = tab.dataset.mode;
+  renderRecordsPanel();
+}));
+
+resetRecordsBtn.addEventListener('click', () => {
+  if (!confirm('¿Borrar todos los récords locales?')) return;
+  ['classic', 'sprint', 'ultra'].forEach(m => localStorage.removeItem(SCORES_KEY(m)));
+  ['classic', 'sprint', 'ultra'].forEach(updateModeSelectRecord);
+  renderRecordsPanel();
+});
+
 initTheme();
 initStartLevelSelect();
 ['classic', 'sprint', 'ultra'].forEach(updateModeSelectRecord);
+renderRecordsPanel();
