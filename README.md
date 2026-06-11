@@ -314,6 +314,26 @@ en gris las habilidades no disponibles en ese momento.
 
 ---
 
+### Skins visuales
+
+Un selector (`#skin-select`, junto al toggle de tema) cambia la apariencia de
+todos los bloques (tablero, pieza actual, ghost, HOLD y NEXT) sin recargar la
+página. La preferencia se guarda en `localStorage` (`tetris-skin`).
+
+| Skin | Estilo |
+| ---- | ------ |
+| **Retro** | Bloques cuadrados de color plano con highlight superior (estilo original). |
+| **Neon** | Fondo del bloque casi negro, relleno semitransparente y borde con `ctx.shadowBlur` para un efecto glow. |
+| **Pastel** | Colores aclarados (`shadeColor`) y esquinas redondeadas vía `ctx.roundRect`, con un brillo superior translúcido. |
+| **Pixel art** | Cada bloque se subdivide en una grilla 4×4 con tonos claros/oscuros del mismo color (patrón checkerboard). |
+
+`drawBlock()` actúa como dispatcher: delega en `drawBlockRetro` /
+`drawBlockNeon` / `drawBlockPastel` / `drawBlockPixel` según `currentSkin`
+(tabla `SKIN_DRAWERS`), y dibuja el aspa de las celdas comodín (Tinte) por
+encima, compartida por todos los skins.
+
+---
+
 ## Tecnologías
 
 - **HTML5** — marcado y dos elementos `<canvas>` (tablero y vista previa).
